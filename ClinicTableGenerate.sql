@@ -265,3 +265,78 @@ CREATE TABLE PrescriptionDetails (
         CHECK (DurationDays IS NULL OR DurationDays > 0)
 );
 GO
+USE ClinicManagement;
+GO
+
+CREATE TABLE Invoices (
+    InvoiceID INT IDENTITY(1,1) PRIMARY KEY,
+
+    MedicalRecordID INT NOT NULL,
+
+    InvoiceDate DATETIME2 NOT NULL
+        DEFAULT SYSDATETIME(),
+
+    ServiceAmount DECIMAL(12,2) NOT NULL
+        DEFAULT 0,
+
+    MedicineAmount DECIMAL(12,2) NOT NULL
+        DEFAULT 0,
+
+    DiscountAmount DECIMAL(12,2) NOT NULL
+        DEFAULT 0,
+
+    TotalAmount DECIMAL(12,2) NOT NULL
+        DEFAULT 0,
+
+    PaymentMethod VARCHAR(20) NULL,
+
+    PaymentStatus VARCHAR(20) NOT NULL
+        DEFAULT 'UNPAID',
+
+    Notes NVARCHAR(500) NULL,
+
+    CONSTRAINT FK_Invoices_MedicalRecords
+        FOREIGN KEY (MedicalRecordID)
+        REFERENCES MedicalRecords(MedicalRecordID),
+
+    CONSTRAINT UQ_Invoices_MedicalRecord
+        UNIQUE (MedicalRecordID),
+
+    CONSTRAINT CK_Invoices_ServiceAmount
+        CHECK (ServiceAmount >= 0),
+
+    CONSTRAINT CK_Invoices_MedicineAmount
+        CHECK (MedicineAmount >= 0),
+
+    CONSTRAINT CK_Invoices_DiscountAmount
+        CHECK (
+            DiscountAmount >= 0
+            AND DiscountAmount <= ServiceAmount + MedicineAmount
+        ),
+
+    CONSTRAINT CK_Invoices_TotalAmount
+        CHECK (
+            TotalAmount =
+                ServiceAmount + MedicineAmount - DiscountAmount
+        ),
+
+    CONSTRAINT CK_Invoices_PaymentMethod
+        CHECK (
+            PaymentMethod IS NULL
+            OR PaymentMethod IN (
+                'CASH',
+                'BANK_TRANSFER',
+                'CARD'
+            )
+        ),
+
+    CONSTRAINT CK_Invoices_PaymentStatus
+        CHECK (
+            PaymentStatus IN (
+                'UNPAID',
+                'PAID',
+                'CANCELLED'
+            )
+        )
+);
+GO
