@@ -340,3 +340,56 @@ CREATE TABLE Invoices (
         )
 );
 GO
+
+
+
+CREATE TABLE Users (
+    UserID INT IDENTITY(1,1) PRIMARY KEY,
+
+    Username VARCHAR(50) NOT NULL,
+    PasswordHash VARCHAR(255) NOT NULL,
+
+    Role VARCHAR(20) NOT NULL
+        CHECK (Role IN ('PATIENT', 'DOCTOR', 'MANAGER')),
+
+    IsActive BIT NOT NULL DEFAULT 1,
+
+    CreatedAt DATETIME2 NOT NULL DEFAULT SYSDATETIME(),
+    UpdatedAt DATETIME2 NULL,
+
+    CONSTRAINT UQ_Users_Username UNIQUE (Username)
+);
+
+-- Liên kết tài khoản với bệnh nhân
+ALTER TABLE Patients
+ADD UserID INT NULL;
+
+ALTER TABLE Patients
+ADD CONSTRAINT FK_Patients_Users
+    FOREIGN KEY (UserID)
+    REFERENCES Users(UserID);
+
+
+
+
+-- Liên kết tài khoản với bác sĩ
+ALTER TABLE Doctors
+ADD UserID INT NULL;
+
+ALTER TABLE Doctors
+ADD CONSTRAINT FK_Doctors_Users
+    FOREIGN KEY (UserID)
+    REFERENCES Users(UserID);
+
+
+ 
+ CREATE UNIQUE INDEX UQ_Doctors_UserID
+ON Doctors(UserID)
+WHERE UserID IS NOT NULL;
+
+
+
+    CREATE UNIQUE INDEX UQ_Patients_UserID
+ON Patients(UserID)
+WHERE UserID IS NOT NULL;
+

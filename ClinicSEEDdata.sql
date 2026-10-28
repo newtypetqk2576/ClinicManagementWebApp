@@ -195,3 +195,62 @@ VALUES (
     N'Dữ liệu minh họa, không phải chỉ định điều trị'
 );
 GO
+
+-- 1. Tạo tài khoản bệnh nhân
+INSERT INTO Users (Username, PasswordHash, Role)
+VALUES
+('nguyenkhanhchi', '123456', 'PATIENT'),
+('tranquangkhai',  '123456', 'PATIENT');
+
+
+-- 2. Tạo tài khoản bác sĩ
+INSERT INTO Users (Username, PasswordHash, Role)
+VALUES
+('phamkhanhlinh', '123456', 'MANAGER'),
+('tranqkhai',     '123456', 'DOCTOR'),
+('lethanhloan',   '123456', 'DOCTOR');
+
+
+-- 3. Liên kết tài khoản với bệnh nhân
+UPDATE Patients
+SET UserID = (
+    SELECT UserID FROM Users
+    WHERE Username = 'nguyenkhanhchi'
+)
+WHERE FullName = N'Nguyễn Khánh Chi';
+
+UPDATE Patients
+SET UserID = (
+    SELECT UserID FROM Users
+    WHERE Username = 'tranquangkhai'
+)
+WHERE FullName = N'Trần Quang Khải';
+
+
+-- 4. Liên kết tài khoản với bác sĩ
+UPDATE Doctors
+SET UserID = (
+    SELECT UserID FROM Users
+    WHERE Username = 'phamkhanhlinh'
+)
+WHERE FullName = N'Phạm Khánh Linh';
+
+UPDATE Doctors
+SET UserID = (
+    SELECT UserID FROM Users
+    WHERE Username = 'tranqkhai'
+)
+WHERE FullName = N'Trần q Khải';
+
+UPDATE Doctors
+SET UserID = (
+    SELECT UserID FROM Users
+    WHERE Username = 'lethanhloan'
+)
+WHERE FullName = N'Lê Thanh Loan';
+
+
+-- 5. Kiểm tra kết quả
+SELECT * FROM Users;
+SELECT * FROM Patients;
+SELECT * FROM Doctors;
