@@ -3,6 +3,7 @@ package Controller;
 import Dal.AppointmentDAO;
 import Dal.DoctorDAO;
 import Dal.MedicalRecordDAO;
+import Dal.MedicalRecordDAO.InvoicePaymentResult;
 import Dal.MedicineDAO;
 import Dal.PatientDAO;
 import Dal.ServiceDAO;
@@ -35,7 +36,15 @@ import java.util.logging.Logger;
     "/doctor/medical-records/new",
     "/doctor/medical-records/search-patients",
     "/doctor/medical-records/search-services",
-    "/doctor/medical-records/search-medicines"
+    "/doctor/medical-records/search-medicines",
+    "/doctor/medical-records/confirm-payment",
+    "/admin/medical-records",
+    "/admin/medical-records/new",
+    "/admin/medical-records/search-patients",
+    "/admin/medical-records/search-doctors",
+    "/admin/medical-records/search-services",
+    "/admin/medical-records/search-medicines",
+    "/admin/medical-records/confirm-payment"
 })
 public class DoctorMedicalRecordsServlet extends HttpServlet {
     private static final Logger LOGGER = Logger.getLogger(DoctorMedicalRecordsServlet.class.getName());
@@ -48,11 +57,16 @@ public class DoctorMedicalRecordsServlet extends HttpServlet {
     protected void doGet(HttpServletRequest request, HttpServletResponse response)
             throws ServletException, IOException {
         response.setHeader("Cache-Control", "no-store, private");
-        Integer doctorID = requireDoctor(request, response);
-        if (doctorID == null) {
+        if (!requireAccess(request, response)) {
             return;
         }
+        boolean manager = isManager(request);
+        Integer doctorID = manager ? null : (Integer) request.getSession(false).getAttribute("DoctorID");
         String path = request.getServletPath();
+        if (path.endsWith("/confirm-payment")) {
+            response.sendError(HttpServletResponse.SC_METHOD_NOT_ALLOWED);
+            return;
+        }
         if (path.endsWith("/search-patients")) {
             searchPatients(request, response);
             return;
@@ -65,35 +79,44 @@ public class DoctorMedicalRecordsServlet extends HttpServlet {
             searchMedicines(request, response);
             return;
         }
+        if (path.endsWith("/search-doctors")) {
+            searchDoctors(request, response);
+            return;
+        }
 
         try {
-            Doctor doctor = loadSignedInDoctor(request, doctorID);
+            Doctor doctor = manager ? null : loadSignedInDoctor(request, doctorID);
             request.setAttribute("doctor", doctor);
+            request.setAttribute("managerMode", manager);
+            request.setAttribute("routeBase", manager ? "/admin/medical-records" : "/doctor/medical-records");
             HttpSession session = request.getSession(false);
-            request.setAttribute("message", session.getAttribute("doctorMedicalRecordMessage"));
-            session.removeAttribute("doctorMedicalRecordMessage");
+            String messageKey = manager ? "managerMedicalRecordMessage" : "doctorMedicalRecordMessage";
+            request.setAttribute("message", session.getAttribute(messageKey));
+            session.removeAttribute(messageKey);
 
-            if ("/doctor/medical-records/new".equals(path)) {
-                loadNewForm(request, response, doctor, null);
+            if (path.endsWith("/new")) {
+                loadNewForm(request, response, doctor, null, manager);
                 return;
             }
 
             String idValue = request.getParameter("id");
             if (idValue == null) {
-                request.setAttribute("records",
-                        new MedicalRecordDAO(getServletContext()).getByDoctorID(doctorID));
+                request.setAttribute("records", manager
+                        ? new MedicalRecordDAO(getServletContext()).getAllForManager()
+                        : new MedicalRecordDAO(getServletContext()).getByDoctorID(doctorID));
                 request.getRequestDispatcher(LIST_PAGE).forward(request, response);
                 return;
             }
 
             int recordID = parseID(idValue);
-            MedicalRecord record = new MedicalRecordDAO(getServletContext())
-                    .getDetailsForDoctor(recordID, doctorID);
+            MedicalRecord record = manager
+                    ? new MedicalRecordDAO(getServletContext()).getDetailsForManager(recordID)
+                    : new MedicalRecordDAO(getServletContext()).getDetailsForDoctor(recordID, doctorID);
             if (record == null) {
                 response.sendError(HttpServletResponse.SC_NOT_FOUND);
                 return;
             }
-            renderEditForm(request, response, doctor, record, null);
+            renderEditForm(request, response, doctor, record, null, manager);
         } catch (NumberFormatException ex) {
             response.sendError(HttpServletResponse.SC_BAD_REQUEST);
         } catch (IllegalArgumentException ex) {
@@ -110,40 +133,88 @@ public class DoctorMedicalRecordsServlet extends HttpServlet {
             throws ServletException, IOException {
         response.setHeader("Cache-Control", "no-store, private");
         request.setCharacterEncoding("UTF-8");
-        Integer doctorID = requireDoctor(request, response);
-        if (doctorID == null) {
+        if (!requireAccess(request, response)) {
             return;
         }
+        boolean manager = isManager(request);
+        Integer doctorID = manager ? null : (Integer) request.getSession(false).getAttribute("DoctorID");
+        boolean confirmPayment = request.getServletPath().endsWith("/confirm-payment");
         String action = request.getParameter("action");
-        if (!"create".equals(action) && !"update".equals(action)) {
+        if (!confirmPayment && !"create".equals(action) && !"update".equals(action)) {
             response.sendError(HttpServletResponse.SC_BAD_REQUEST);
             return;
         }
 
         try {
-            Doctor doctor = loadSignedInDoctor(request, doctorID);
-            if (!doctor.isActive()) {
-                response.sendError(HttpServletResponse.SC_FORBIDDEN);
+            Doctor doctor = manager ? null : loadSignedInDoctor(request, doctorID);
+            if (!manager) {
+                if (!doctor.isActive()) {
+                    response.sendError(HttpServletResponse.SC_FORBIDDEN);
+                    return;
+                }
+            }
+            if (confirmPayment) {
+                confirmInvoicePayment(request, response, manager, doctorID);
                 return;
             }
             if ("create".equals(action)) {
-                createRecord(request, response, doctor);
+                createRecord(request, response, doctor, manager);
             } else {
-                updateRecord(request, response, doctor);
+                updateRecord(request, response, doctor, manager);
             }
         } catch (IllegalArgumentException ex) {
             response.sendError(HttpServletResponse.SC_FORBIDDEN);
         } catch (SQLException ex) {
-            LOGGER.log(Level.SEVERE, "Unable to save Doctor medical record.", ex);
-            response.sendError(HttpServletResponse.SC_INTERNAL_SERVER_ERROR,
-                    "The medical record could not be saved right now.");
+            if (confirmPayment) {
+                LOGGER.log(Level.SEVERE, "Unable to confirm invoice payment.", ex);
+                response.sendError(HttpServletResponse.SC_INTERNAL_SERVER_ERROR,
+                        "Invoice payment could not be confirmed right now.");
+            } else {
+                LOGGER.log(Level.SEVERE, "Unable to save Doctor medical record.", ex);
+                response.sendError(HttpServletResponse.SC_INTERNAL_SERVER_ERROR,
+                        "The medical record could not be saved right now.");
+            }
         }
     }
 
-    private void createRecord(HttpServletRequest request, HttpServletResponse response, Doctor doctor)
+    private void confirmInvoicePayment(HttpServletRequest request, HttpServletResponse response,
+            boolean manager, Integer doctorID) throws IOException, SQLException {
+        int recordID;
+        try {
+            recordID = parseID(request.getParameter("id"));
+        } catch (NumberFormatException ex) {
+            response.sendError(HttpServletResponse.SC_BAD_REQUEST);
+            return;
+        }
+
+        MedicalRecordDAO dao = new MedicalRecordDAO(getServletContext());
+        InvoicePaymentResult result = manager
+                ? dao.confirmInvoicePaymentForManager(recordID)
+                : dao.confirmInvoicePaymentForDoctor(recordID, doctorID);
+        if (result == InvoicePaymentResult.NOT_FOUND) {
+            response.sendError(HttpServletResponse.SC_NOT_FOUND);
+            return;
+        }
+
+        String message = switch (result) {
+            case CONFIRMED -> "Invoice payment confirmed.";
+            case ALREADY_PAID -> "This invoice is already marked as paid.";
+            case NOT_PAYABLE -> "Payment cannot be confirmed for this invoice.";
+            case NOT_FOUND -> throw new IllegalStateException("The invoice was not found.");
+        };
+        request.getSession(false).setAttribute(manager
+                ? "managerMedicalRecordMessage" : "doctorMedicalRecordMessage", message);
+        response.sendRedirect(request.getContextPath()
+                + (manager ? "/admin/medical-records?id=" : "/doctor/medical-records?id=") + recordID);
+    }
+
+    private void createRecord(HttpServletRequest request, HttpServletResponse response, Doctor doctor,
+            boolean manager)
             throws ServletException, IOException, SQLException {
         MedicalRecord record = new MedicalRecord();
-        record.setDoctorID(doctor.getDoctorID());
+        if (!manager) {
+            record.setDoctorID(doctor.getDoctorID());
+        }
         readClinicalFields(request, record, true);
         Integer appointmentID;
         try {
@@ -155,20 +226,32 @@ public class DoctorMedicalRecordsServlet extends HttpServlet {
         record.setAppointmentID(appointmentID);
         Appointment appointment = null;
         if (appointmentID != null) {
-            appointment = new AppointmentDAO(getServletContext())
-                    .getDetailsForDoctor(appointmentID, doctor.getDoctorID());
+            appointment = manager
+                    ? new AppointmentDAO(getServletContext()).getDetailsForManager(appointmentID)
+                    : new AppointmentDAO(getServletContext())
+                            .getDetailsForDoctor(appointmentID, doctor.getDoctorID());
             if (appointment == null) {
                 response.sendError(HttpServletResponse.SC_NOT_FOUND);
                 return;
             }
             record.setPatientID(appointment.getPatientID());
+            record.setDoctorID(appointment.getDoctorID());
         } else {
             try {
                 record.setPatientID(parseID(request.getParameter("patientID")));
             } catch (NumberFormatException ex) {
                 renderNewForm(request, response, doctor, null, record,
-                        "Search for and select a patient first.");
+                        "Search for and select a patient first.", manager);
                 return;
+            }
+            if (manager) {
+                try {
+                    record.setDoctorID(parseID(request.getParameter("doctorID")));
+                } catch (NumberFormatException ex) {
+                    renderNewForm(request, response, doctor, null, record,
+                            "Search for and select an active doctor first.", manager);
+                    return;
+                }
             }
         }
 
@@ -177,7 +260,7 @@ public class DoctorMedicalRecordsServlet extends HttpServlet {
             error = readItems(request, record);
         }
         if (error != null) {
-            renderNewForm(request, response, doctor, appointment, record, error);
+            renderNewForm(request, response, doctor, appointment, record, error, manager);
             return;
         }
 
@@ -185,25 +268,33 @@ public class DoctorMedicalRecordsServlet extends HttpServlet {
         try {
             MedicalRecordDAO dao = new MedicalRecordDAO(getServletContext());
             if (appointmentID != null) {
-                Integer existingID = dao.getIDByAppointmentForDoctor(appointmentID, doctor.getDoctorID());
+                Integer existingID = manager
+                        ? dao.getIDByAppointmentForManager(appointmentID)
+                        : dao.getIDByAppointmentForDoctor(appointmentID, doctor.getDoctorID());
                 if (existingID != null) {
                     response.sendRedirect(request.getContextPath()
-                            + "/doctor/medical-records?id=" + existingID);
+                            + (manager ? "/admin/medical-records?id=" : "/doctor/medical-records?id=")
+                            + existingID);
                     return;
                 }
             }
-            if (!dao.saveForDoctor(record, createInvoice, true)) {
+            boolean saved = manager ? dao.saveForManager(record, createInvoice, true)
+                    : dao.saveForDoctor(record, createInvoice, true);
+            if (!saved) {
                 response.sendError(HttpServletResponse.SC_CONFLICT);
                 return;
             }
-            request.getSession(false).setAttribute("doctorMedicalRecordMessage", "Medical record created.");
-            response.sendRedirect(request.getContextPath() + "/doctor/medical-records");
+            request.getSession(false).setAttribute(manager
+                    ? "managerMedicalRecordMessage" : "doctorMedicalRecordMessage", "Medical record created.");
+            response.sendRedirect(request.getContextPath()
+                    + (manager ? "/admin/medical-records" : "/doctor/medical-records"));
         } catch (IllegalArgumentException ex) {
-            renderNewForm(request, response, doctor, appointment, record, ex.getMessage());
+            renderNewForm(request, response, doctor, appointment, record, ex.getMessage(), manager);
         }
     }
 
-    private void updateRecord(HttpServletRequest request, HttpServletResponse response, Doctor doctor)
+    private void updateRecord(HttpServletRequest request, HttpServletResponse response, Doctor doctor,
+            boolean manager)
             throws ServletException, IOException, SQLException {
         int recordID;
         try {
@@ -212,8 +303,9 @@ public class DoctorMedicalRecordsServlet extends HttpServlet {
             response.sendError(HttpServletResponse.SC_BAD_REQUEST);
             return;
         }
-        MedicalRecord record = new MedicalRecordDAO(getServletContext())
-                .getDetailsForDoctor(recordID, doctor.getDoctorID());
+        MedicalRecord record = manager
+                ? new MedicalRecordDAO(getServletContext()).getDetailsForManager(recordID)
+                : new MedicalRecordDAO(getServletContext()).getDetailsForDoctor(recordID, doctor.getDoctorID());
         if (record == null) {
             response.sendError(HttpServletResponse.SC_NOT_FOUND);
             return;
@@ -225,7 +317,7 @@ public class DoctorMedicalRecordsServlet extends HttpServlet {
             error = readItems(request, record);
         }
         if (error != null) {
-            renderEditForm(request, response, doctor, record, error);
+            renderEditForm(request, response, doctor, record, error, manager);
             return;
         }
 
@@ -233,15 +325,19 @@ public class DoctorMedicalRecordsServlet extends HttpServlet {
                 && "true".equals(request.getParameter("createInvoice"));
         try {
             MedicalRecordDAO saveDAO = new MedicalRecordDAO(getServletContext());
-            if (!saveDAO.saveForDoctor(record, createInvoice, itemsEditable)) {
+            boolean saved = manager ? saveDAO.saveForManager(record, createInvoice, itemsEditable)
+                    : saveDAO.saveForDoctor(record, createInvoice, itemsEditable);
+            if (!saved) {
                 response.sendError(HttpServletResponse.SC_NOT_FOUND);
                 return;
             }
-            request.getSession(false).setAttribute("doctorMedicalRecordMessage",
+            request.getSession(false).setAttribute(manager
+                    ? "managerMedicalRecordMessage" : "doctorMedicalRecordMessage",
                     "Medical record changes saved.");
-            response.sendRedirect(request.getContextPath() + "/doctor/medical-records?id=" + recordID);
+            response.sendRedirect(request.getContextPath()
+                    + (manager ? "/admin/medical-records?id=" : "/doctor/medical-records?id=") + recordID);
         } catch (IllegalArgumentException | IllegalStateException ex) {
-            renderEditForm(request, response, doctor, record, ex.getMessage());
+            renderEditForm(request, response, doctor, record, ex.getMessage(), manager);
         }
     }
 
@@ -374,7 +470,8 @@ public class DoctorMedicalRecordsServlet extends HttpServlet {
     }
 
     private void loadNewForm(
-            HttpServletRequest request, HttpServletResponse response, Doctor doctor, String error)
+            HttpServletRequest request, HttpServletResponse response, Doctor doctor, String error,
+            boolean manager)
             throws ServletException, IOException, SQLException {
         Integer appointmentID;
         try {
@@ -385,15 +482,20 @@ public class DoctorMedicalRecordsServlet extends HttpServlet {
         }
         Appointment appointment = null;
         if (appointmentID != null) {
-            Integer existingID = new MedicalRecordDAO(getServletContext())
-                    .getIDByAppointmentForDoctor(appointmentID, doctor.getDoctorID());
+            Integer existingID = manager
+                    ? new MedicalRecordDAO(getServletContext()).getIDByAppointmentForManager(appointmentID)
+                    : new MedicalRecordDAO(getServletContext())
+                            .getIDByAppointmentForDoctor(appointmentID, doctor.getDoctorID());
             if (existingID != null) {
                 response.sendRedirect(request.getContextPath()
-                        + "/doctor/medical-records?id=" + existingID);
+                        + (manager ? "/admin/medical-records?id=" : "/doctor/medical-records?id=")
+                        + existingID);
                 return;
             }
-            appointment = new AppointmentDAO(getServletContext())
-                    .getDetailsForDoctor(appointmentID, doctor.getDoctorID());
+            appointment = manager
+                    ? new AppointmentDAO(getServletContext()).getDetailsForManager(appointmentID)
+                    : new AppointmentDAO(getServletContext())
+                            .getDetailsForDoctor(appointmentID, doctor.getDoctorID());
             if (appointment == null) {
                 response.sendError(HttpServletResponse.SC_NOT_FOUND);
                 return;
@@ -401,34 +503,57 @@ public class DoctorMedicalRecordsServlet extends HttpServlet {
         }
         MedicalRecord record = new MedicalRecord();
         record.setStatus("IN_PROGRESS");
-        renderNewForm(request, response, doctor, appointment, record, error);
+        if (appointment != null) {
+            record.setDoctorID(appointment.getDoctorID());
+            record.setDoctorName(appointment.getDoctorName());
+        }
+        renderNewForm(request, response, doctor, appointment, record, error, manager);
     }
 
     private void renderNewForm(HttpServletRequest request, HttpServletResponse response,
-            Doctor doctor, Appointment appointment, MedicalRecord record, String error)
-            throws ServletException, IOException {
+            Doctor doctor, Appointment appointment, MedicalRecord record, String error, boolean manager)
+            throws ServletException, IOException, SQLException {
         if (appointment != null) {
             record.setAppointmentID(appointment.getAppointmentID());
             record.setPatientID(appointment.getPatientID());
             record.setPatientName(appointment.getPatient().getFullName());
+            record.setDoctorID(appointment.getDoctorID());
+            record.setDoctorName(appointment.getDoctorName());
+        }
+        Doctor selectedDoctor = null;
+        if (manager && appointment == null && record.getDoctorID() > 0) {
+            selectedDoctor = new DoctorDAO(getServletContext()).getByID(record.getDoctorID());
+            if (selectedDoctor != null && !selectedDoctor.isActive()) {
+                selectedDoctor = null;
+            }
         }
         request.setAttribute("record", record);
         request.setAttribute("appointment", appointment);
         request.setAttribute("createMode", true);
         request.setAttribute("doctor", doctor);
+        request.setAttribute("selectedDoctor", selectedDoctor);
+        request.setAttribute("managerMode", manager);
+        request.setAttribute("routeBase", manager ? "/admin/medical-records" : "/doctor/medical-records");
         request.setAttribute("itemsEditable", true);
         request.setAttribute("error", error);
-        request.setAttribute("patientIDValue", value(request.getParameter("patientID")));
+        request.setAttribute("patientIDValue", appointment == null
+                ? value(request.getParameter("patientID")) : "");
         request.setAttribute("patientNameValue", value(request.getParameter("patientName")));
         request.setAttribute("patientPhoneValue", value(request.getParameter("patientPhone")));
+        request.setAttribute("doctorIDValue", selectedDoctor == null ? "" : selectedDoctor.getDoctorID());
+        request.setAttribute("doctorNameValue", selectedDoctor == null ? "" : selectedDoctor.getFullName());
+        request.setAttribute("doctorPhoneValue", selectedDoctor == null ? "" : value(selectedDoctor.getPhone()));
         request.getRequestDispatcher(FORM_PAGE).forward(request, response);
     }
 
     private void renderEditForm(HttpServletRequest request, HttpServletResponse response,
-            Doctor doctor, MedicalRecord record, String error) throws ServletException, IOException {
+            Doctor doctor, MedicalRecord record, String error, boolean manager)
+            throws ServletException, IOException {
         request.setAttribute("record", record);
         request.setAttribute("createMode", false);
         request.setAttribute("doctor", doctor);
+        request.setAttribute("managerMode", manager);
+        request.setAttribute("routeBase", manager ? "/admin/medical-records" : "/doctor/medical-records");
         request.setAttribute("itemsEditable", itemsEditable(record));
         request.setAttribute("error", error);
         request.getRequestDispatcher(FORM_PAGE).forward(request, response);
@@ -475,6 +600,41 @@ public class DoctorMedicalRecordsServlet extends HttpServlet {
             LOGGER.log(Level.SEVERE, "Unable to search patients for Doctor medical record.", ex);
             response.sendError(HttpServletResponse.SC_INTERNAL_SERVER_ERROR,
                     "Patient search is temporarily unavailable.");
+        }
+    }
+
+    private void searchDoctors(HttpServletRequest request, HttpServletResponse response)
+            throws IOException {
+        String term = value(request.getParameter("term")).trim();
+        if (term.length() > 100) {
+            response.sendError(HttpServletResponse.SC_BAD_REQUEST);
+            return;
+        }
+        try {
+            List<Doctor> doctors = new DoctorDAO(getServletContext()).searchActiveByNameOrPhone(term);
+            response.setContentType("application/json");
+            response.setCharacterEncoding("UTF-8");
+            response.setHeader("Cache-Control", "no-store, private");
+            PrintWriter writer = response.getWriter();
+            writer.write("[");
+            for (int i = 0; i < doctors.size(); i++) {
+                Doctor selectedDoctor = doctors.get(i);
+                if (i > 0) {
+                    writer.write(",");
+                }
+                writer.write("{\"id\":");
+                writer.write(Integer.toString(selectedDoctor.getDoctorID()));
+                writer.write(",\"name\":\"");
+                writer.write(jsonEscape(selectedDoctor.getFullName()));
+                writer.write("\",\"phone\":\"");
+                writer.write(jsonEscape(value(selectedDoctor.getPhone())));
+                writer.write("\"}");
+            }
+            writer.write("]");
+        } catch (SQLException ex) {
+            LOGGER.log(Level.SEVERE, "Unable to search doctors for manager medical record.", ex);
+            response.sendError(HttpServletResponse.SC_INTERNAL_SERVER_ERROR,
+                    "Doctor search is temporarily unavailable.");
         }
     }
 
@@ -552,19 +712,28 @@ public class DoctorMedicalRecordsServlet extends HttpServlet {
         }
     }
 
-    private Integer requireDoctor(HttpServletRequest request, HttpServletResponse response)
+    private boolean requireAccess(HttpServletRequest request, HttpServletResponse response)
             throws IOException {
         HttpSession session = request.getSession(false);
         if (session == null || !(session.getAttribute("UserID") instanceof Integer)) {
             response.sendRedirect(request.getContextPath() + "/login");
-            return null;
+            return false;
+        }
+        if ("MANAGER".equals(session.getAttribute("Role"))
+                && request.getServletPath().startsWith("/admin/")) {
+            return true;
         }
         if (!"DOCTOR".equals(session.getAttribute("Role"))
+                || !request.getServletPath().startsWith("/doctor/")
                 || !(session.getAttribute("DoctorID") instanceof Integer doctorID) || doctorID <= 0) {
             response.sendError(HttpServletResponse.SC_FORBIDDEN);
-            return null;
+            return false;
         }
-        return doctorID;
+        return true;
+    }
+
+    private boolean isManager(HttpServletRequest request) {
+        return "MANAGER".equals(request.getSession(false).getAttribute("Role"));
     }
 
     private int parseID(String value) {

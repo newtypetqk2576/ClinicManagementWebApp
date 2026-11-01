@@ -27,8 +27,8 @@
                 <dt>Status</dt><dd><c:out value="${appointment.status}"/></dd>
             </dl>
 
-            <c:if test="${appointment.status eq 'BOOKED' and appointment.doctorID eq doctorID}">
-                <c:url var="appointmentsUrl" value="/doctor/appointments"/>
+            <c:if test="${appointment.status eq 'BOOKED' and (managerMode or appointment.doctorID eq doctorID)}">
+                <c:url var="appointmentsUrl" value="${routeBase}"/>
                 <form method="post" action="<c:out value="${appointmentsUrl}"/>">
                     <input type="hidden" name="action" value="confirm">
                     <input type="hidden" name="id" value="<c:out value="${appointment.appointmentID}"/>">
@@ -47,11 +47,11 @@
                 <dt>Address</dt><dd><c:out value="${appointment.patient.address}"/></dd>
                 <dt>Patient created at</dt><dd><c:out value="${appointment.patient.createdAt}"/></dd>
             </dl>
-            <c:url var="newRecordUrl" value="/doctor/medical-records/new">
+            <c:url var="newRecordUrl" value="${recordBasePath}/new">
                 <c:param name="appointmentID" value="${appointment.appointmentID}"/>
             </c:url>
             <p><a href="<c:out value="${newRecordUrl}"/>">Create medical record from this appointment</a></p>
-            <c:url var="listUrl" value="/doctor/appointments"/>
+            <c:url var="listUrl" value="${routeBase}"/>
             <p><a href="<c:out value="${listUrl}"/>">Back to appointments</a></p>
         </main>
     </body>

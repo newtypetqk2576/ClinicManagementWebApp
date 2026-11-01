@@ -12,6 +12,8 @@ public class User {
     private LocalDateTime updatedAt;
     private Integer patientID;
     private Integer doctorID;
+    private Patient patient;
+    private Doctor doctor;
 
     public User() {
     }
@@ -86,5 +88,21 @@ public class User {
 
     public void setDoctorID(Integer doctorID) {
         this.doctorID = doctorID;
+    }
+
+    public Patient getPatient() {
+        return patient;
+    }
+
+    public void setPatient(Patient patient) {
+        this.patient = patient;
+    }
+
+    public Doctor getDoctor() {
+        return doctor;
+    }
+
+    public void setDoctor(Doctor doctor) {
+        this.doctor = doctor;
     }
 }

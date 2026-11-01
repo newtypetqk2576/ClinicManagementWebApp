@@ -17,6 +17,13 @@ import java.util.List;
 import java.util.Map;
 
 public class MedicalRecordDAO extends DBContext {
+    public enum InvoicePaymentResult {
+        CONFIRMED,
+        ALREADY_PAID,
+        NOT_PAYABLE,
+        NOT_FOUND
+    }
+
     public MedicalRecordDAO(ServletContext servletContext) {
         super(servletContext);
     }
@@ -120,19 +127,58 @@ public class MedicalRecordDAO extends DBContext {
         return records;
     }
 
+    public List<MedicalRecord> getAllForManager() throws SQLException {
+        String sql = "SELECT mr.MedicalRecordID, mr.PatientID, mr.DoctorID, "
+                + "p.FullName AS PatientName, d.FullName AS DoctorName, mr.VisitDate, "
+                + "mr.Symptoms, mr.Status FROM MedicalRecords mr "
+                + "JOIN Patients p ON p.PatientID = mr.PatientID "
+                + "JOIN Doctors d ON d.DoctorID = mr.DoctorID "
+                + "ORDER BY mr.VisitDate DESC, mr.MedicalRecordID DESC";
+        List<MedicalRecord> records = new ArrayList<>();
+        try (Connection conn = requireConnection();
+                PreparedStatement statement = conn.prepareStatement(sql);
+                ResultSet resultSet = statement.executeQuery()) {
+            while (resultSet.next()) {
+                MedicalRecord record = new MedicalRecord();
+                record.setMedicalRecordID(resultSet.getInt("MedicalRecordID"));
+                record.setPatientID(resultSet.getInt("PatientID"));
+                record.setDoctorID(resultSet.getInt("DoctorID"));
+                record.setPatientName(resultSet.getString("PatientName"));
+                record.setDoctorName(resultSet.getString("DoctorName"));
+                record.setVisitDate(resultSet.getTimestamp("VisitDate").toLocalDateTime());
+                record.setSymptoms(resultSet.getString("Symptoms"));
+                record.setStatus(resultSet.getString("Status"));
+                records.add(record);
+            }
+        }
+        return records;
+    }
+
     public MedicalRecord getDetailsForDoctor(int medicalRecordID, int doctorID) throws SQLException {
         requirePositiveID(medicalRecordID, "MedicalRecordID");
         requirePositiveID(doctorID, "DoctorID");
+        return getDetailsByScope(medicalRecordID, doctorID);
+    }
+
+    public MedicalRecord getDetailsForManager(int medicalRecordID) throws SQLException {
+        requirePositiveID(medicalRecordID, "MedicalRecordID");
+        return getDetailsByScope(medicalRecordID, null);
+    }
+
+    private MedicalRecord getDetailsByScope(int medicalRecordID, Integer doctorID) throws SQLException {
         String sql = "SELECT mr.MedicalRecordID, mr.PatientID, mr.DoctorID, mr.AppointmentID, "
                 + "p.FullName AS PatientName, d.FullName AS DoctorName, mr.VisitDate, "
                 + "mr.Symptoms, mr.Diagnosis, mr.TreatmentNotes, mr.Status, mr.CreatedAt "
                 + "FROM MedicalRecords mr JOIN Doctors d ON d.DoctorID = mr.DoctorID "
                 + "JOIN Patients p ON p.PatientID = mr.PatientID "
-                + "WHERE mr.MedicalRecordID = ? AND mr.DoctorID = ?";
+                + "WHERE mr.MedicalRecordID = ? "
+                + (doctorID == null ? "" : "AND mr.DoctorID = ?");
         try (Connection conn = requireConnection();
                 PreparedStatement statement = conn.prepareStatement(sql)) {
             statement.setInt(1, medicalRecordID);
-            statement.setInt(2, doctorID);
+            if (doctorID != null) {
+                statement.setInt(2, doctorID);
+            }
             MedicalRecord record;
             try (ResultSet resultSet = statement.executeQuery()) {
                 if (!resultSet.next()) {
@@ -174,16 +220,89 @@ public class MedicalRecordDAO extends DBContext {
         }
     }
 
+    public Integer getIDByAppointmentForManager(int appointmentID) throws SQLException {
+        requirePositiveID(appointmentID, "AppointmentID");
+        String sql = "SELECT MedicalRecordID FROM MedicalRecords WHERE AppointmentID = ?";
+        try (PreparedStatement statement = requireConnection().prepareStatement(sql)) {
+            statement.setInt(1, appointmentID);
+            try (ResultSet resultSet = statement.executeQuery()) {
+                return resultSet.next() ? resultSet.getInt("MedicalRecordID") : null;
+            }
+        }
+    }
+
     public boolean saveForDoctor(MedicalRecord record, boolean createInvoice, boolean replaceItems)
             throws SQLException {
         requirePositiveID(record.getDoctorID(), "DoctorID");
+        return save(record, createInvoice, replaceItems, record.getDoctorID());
+    }
+
+    public boolean saveForManager(MedicalRecord record, boolean createInvoice, boolean replaceItems)
+            throws SQLException {
+        requirePositiveID(record.getDoctorID(), "DoctorID");
+        return save(record, createInvoice, replaceItems, null);
+    }
+
+    public InvoicePaymentResult confirmInvoicePaymentForDoctor(int medicalRecordID, int doctorID)
+            throws SQLException {
+        requirePositiveID(medicalRecordID, "MedicalRecordID");
+        requirePositiveID(doctorID, "DoctorID");
+        return confirmInvoicePayment(medicalRecordID, doctorID);
+    }
+
+    public InvoicePaymentResult confirmInvoicePaymentForManager(int medicalRecordID) throws SQLException {
+        requirePositiveID(medicalRecordID, "MedicalRecordID");
+        return confirmInvoicePayment(medicalRecordID, null);
+    }
+
+    private InvoicePaymentResult confirmInvoicePayment(int medicalRecordID, Integer doctorID)
+            throws SQLException {
+        String scope = doctorID == null ? "" : "AND mr.DoctorID = ?";
+        String updateSql = "UPDATE i SET PaymentStatus = 'PAID' FROM Invoices i "
+                + "WHERE i.MedicalRecordID = ? AND i.PaymentStatus = 'UNPAID' "
+                + "AND EXISTS (SELECT 1 FROM MedicalRecords mr "
+                + "WHERE mr.MedicalRecordID = i.MedicalRecordID " + scope + ")";
+        try (Connection conn = requireConnection()) {
+            int updated;
+            try (PreparedStatement statement = conn.prepareStatement(updateSql)) {
+                statement.setInt(1, medicalRecordID);
+                if (doctorID != null) {
+                    statement.setInt(2, doctorID);
+                }
+                updated = statement.executeUpdate();
+            }
+            if (updated == 1) {
+                return InvoicePaymentResult.CONFIRMED;
+            }
+
+            String statusSql = "SELECT i.PaymentStatus FROM Invoices i "
+                    + "JOIN MedicalRecords mr ON mr.MedicalRecordID = i.MedicalRecordID "
+                    + "WHERE mr.MedicalRecordID = ? " + scope;
+            try (PreparedStatement statusStatement = conn.prepareStatement(statusSql)) {
+                statusStatement.setInt(1, medicalRecordID);
+                if (doctorID != null) {
+                    statusStatement.setInt(2, doctorID);
+                }
+                try (ResultSet resultSet = statusStatement.executeQuery()) {
+                    if (!resultSet.next()) {
+                        return InvoicePaymentResult.NOT_FOUND;
+                    }
+                    return "PAID".equals(resultSet.getString("PaymentStatus"))
+                            ? InvoicePaymentResult.ALREADY_PAID : InvoicePaymentResult.NOT_PAYABLE;
+                }
+            }
+        }
+    }
+
+    private boolean save(MedicalRecord record, boolean createInvoice, boolean replaceItems, Integer doctorScope)
+            throws SQLException {
         Connection conn = requireConnection();
         boolean originalAutoCommit = conn.getAutoCommit();
         conn.setAutoCommit(false);
         try {
             int recordID;
             if (record.getMedicalRecordID() <= 0) {
-                validateNewRecordRelations(conn, record);
+                validateNewRecordRelations(conn, record, doctorScope);
                 String sql = "INSERT INTO MedicalRecords "
                         + "(AppointmentID, PatientID, DoctorID, Symptoms, Diagnosis, TreatmentNotes, Status) "
                         + "OUTPUT INSERTED.MedicalRecordID VALUES (?, ?, ?, ?, ?, ?, ?)";
@@ -206,14 +325,17 @@ public class MedicalRecordDAO extends DBContext {
                 recordID = record.getMedicalRecordID();
                 String sql = "UPDATE MedicalRecords SET Symptoms = ?, Diagnosis = ?, "
                         + "TreatmentNotes = ?, Status = ? "
-                        + "WHERE MedicalRecordID = ? AND DoctorID = ?";
+                        + "WHERE MedicalRecordID = ? "
+                        + (doctorScope == null ? "" : "AND DoctorID = ?");
                 try (PreparedStatement statement = conn.prepareStatement(sql)) {
                     setNullableNString(statement, 1, record.getSymptoms());
                     setNullableNString(statement, 2, record.getDiagnosis());
                     setNullableNString(statement, 3, record.getTreatmentNotes());
                     statement.setString(4, record.getStatus());
                     statement.setInt(5, recordID);
-                    statement.setInt(6, record.getDoctorID());
+                    if (doctorScope != null) {
+                        statement.setInt(6, doctorScope);
+                    }
                     if (statement.executeUpdate() != 1) {
                         conn.rollback();
                         return false;
@@ -247,14 +369,18 @@ public class MedicalRecordDAO extends DBContext {
         }
     }
 
-    private void validateNewRecordRelations(Connection conn, MedicalRecord record) throws SQLException {
+    private void validateNewRecordRelations(Connection conn, MedicalRecord record, Integer doctorScope)
+            throws SQLException {
         requirePositiveID(record.getPatientID(), "PatientID");
+        if (doctorScope != null && doctorScope != record.getDoctorID()) {
+            throw new IllegalArgumentException("The selected Doctor does not match the signed-in Doctor.");
+        }
         try (PreparedStatement statement = conn.prepareStatement(
                 "SELECT 1 FROM Doctors WHERE DoctorID = ? AND IsActive = 1")) {
             statement.setInt(1, record.getDoctorID());
             try (ResultSet resultSet = statement.executeQuery()) {
                 if (!resultSet.next()) {
-                    throw new IllegalArgumentException("The signed-in Doctor account is no longer active.");
+                    throw new IllegalArgumentException("The selected Doctor account is no longer active.");
                 }
             }
         }

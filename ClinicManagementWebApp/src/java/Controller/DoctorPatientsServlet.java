@@ -26,7 +26,8 @@ public class DoctorPatientsServlet extends HttpServlet {
     @Override
     protected void doGet(HttpServletRequest request, HttpServletResponse response)
             throws ServletException, IOException {
-        if (requireDoctor(request, response) == null) {
+        response.setHeader("Cache-Control", "no-store, private");
+        if (!requireManagerOrDoctor(request, response)) {
             return;
         }
         HttpSession session = request.getSession(false);
@@ -63,8 +64,9 @@ public class DoctorPatientsServlet extends HttpServlet {
     @Override
     protected void doPost(HttpServletRequest request, HttpServletResponse response)
             throws ServletException, IOException {
+        response.setHeader("Cache-Control", "no-store, private");
         request.setCharacterEncoding("UTF-8");
-        if (requireDoctor(request, response) == null) {
+        if (!requireManagerOrDoctor(request, response)) {
             return;
         }
 
@@ -226,19 +228,24 @@ public class DoctorPatientsServlet extends HttpServlet {
         }
     }
 
-    private Integer requireDoctor(HttpServletRequest request, HttpServletResponse response)
+    private boolean requireManagerOrDoctor(HttpServletRequest request, HttpServletResponse response)
             throws IOException {
         HttpSession session = request.getSession(false);
         if (session == null || !(session.getAttribute("UserID") instanceof Integer)) {
             response.sendRedirect(request.getContextPath() + "/login");
-            return null;
+            return false;
         }
-        if (!"DOCTOR".equals(session.getAttribute("Role"))
-                || !(session.getAttribute("DoctorID") instanceof Integer doctorID) || doctorID <= 0) {
+        Object role = session.getAttribute("Role");
+        if ("DOCTOR".equals(role)
+                && (!(session.getAttribute("DoctorID") instanceof Integer doctorID) || doctorID <= 0)) {
             response.sendError(HttpServletResponse.SC_FORBIDDEN);
-            return null;
+            return false;
         }
-        return doctorID;
+        if (!"DOCTOR".equals(role) && !"MANAGER".equals(role)) {
+            response.sendError(HttpServletResponse.SC_FORBIDDEN);
+            return false;
+        }
+        return true;
     }
 
     private int parseID(String value) {

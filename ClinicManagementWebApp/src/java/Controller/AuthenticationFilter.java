@@ -20,9 +20,20 @@ public class AuthenticationFilter implements Filter {
         HttpServletResponse httpResponse = (HttpServletResponse) response;
         String servletPath = httpRequest.getServletPath();
         boolean doctorView = servletPath.startsWith("/view/doctor-");
+        boolean managerAccessibleDoctorView = "/view/doctor-medicines.jsp".equals(servletPath)
+                || "/view/doctor-medicine-form.jsp".equals(servletPath)
+                || "/view/doctor-services.jsp".equals(servletPath)
+                || "/view/doctor-service-form.jsp".equals(servletPath)
+                || "/view/doctor-patients.jsp".equals(servletPath)
+                || "/view/doctor-patient-edit.jsp".equals(servletPath);
+        boolean managerView = "/view/manager-doctors.jsp".equals(servletPath)
+                || "/view/manager-doctor-form.jsp".equals(servletPath)
+                || "/view/manager-users.jsp".equals(servletPath)
+                || "/view/manager-user-form.jsp".equals(servletPath)
+                || "/view/manager-user-detail.jsp".equals(servletPath);
         boolean protectedAccountRoute = servletPath.startsWith("/account/")
                 || "/auth/change-password.jsp".equals(servletPath);
-        if (!doctorView && !protectedAccountRoute) {
+        if (!doctorView && !managerView && !protectedAccountRoute) {
             chain.doFilter(request, response);
             return;
         }
@@ -40,7 +51,12 @@ public class AuthenticationFilter implements Filter {
             httpResponse.sendError(HttpServletResponse.SC_FORBIDDEN);
             return;
         }
-        if (doctorView && !"DOCTOR".equals(role)) {
+        if (doctorView && !"DOCTOR".equals(role)
+                && !(managerAccessibleDoctorView && "MANAGER".equals(role))) {
+            httpResponse.sendError(HttpServletResponse.SC_FORBIDDEN);
+            return;
+        }
+        if (managerView && !"MANAGER".equals(role)) {
             httpResponse.sendError(HttpServletResponse.SC_FORBIDDEN);
             return;
         }

@@ -5,7 +5,7 @@
     <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1">
-        <title>Doctor appointments</title>
+        <title><c:choose><c:when test="${managerMode}">Manager appointments</c:when><c:otherwise>Doctor appointments</c:otherwise></c:choose></title>
         <link rel="stylesheet" href="${pageContext.request.contextPath}/css/common-layout.css">
     </head>
     <body>
@@ -15,7 +15,7 @@
             <h1>All appointments</h1>
             <c:if test="${not empty message}"><p role="status"><c:out value="${message}"/></p></c:if>
             <c:if test="${not empty error}"><p role="alert"><c:out value="${error}"/></p></c:if>
-            <c:url var="createAppointmentUrl" value="/doctor/appointments/new"/>
+            <c:url var="createAppointmentUrl" value="${routeBase}/new"/>
             <p><a href="<c:out value="${createAppointmentUrl}"/>">Create appointment</a></p>
             <c:choose>
                 <c:when test="${empty appointments}">
@@ -44,12 +44,12 @@
                                     <td><c:out value="${appointment.appointmentDate}"/></td>
                                     <td><c:out value="${appointment.status}"/></td>
                                     <td>
-                                        <c:url var="detailUrl" value="/doctor/appointments">
+                                        <c:url var="detailUrl" value="${routeBase}">
                                             <c:param name="id" value="${appointment.appointmentID}"/>
                                         </c:url>
                                         <a href="<c:out value="${detailUrl}"/>">Detail</a>
-                                        <c:if test="${appointment.status eq 'BOOKED' and appointment.doctorID eq doctorID}">
-                                            <c:url var="appointmentsUrl" value="/doctor/appointments"/>
+                                        <c:if test="${appointment.status eq 'BOOKED' and (managerMode or appointment.doctorID eq doctorID)}">
+                                            <c:url var="appointmentsUrl" value="${routeBase}"/>
                                             <form method="post" action="<c:out value="${appointmentsUrl}"/>">
                                                 <input type="hidden" name="action" value="confirm">
                                                 <input type="hidden" name="id"

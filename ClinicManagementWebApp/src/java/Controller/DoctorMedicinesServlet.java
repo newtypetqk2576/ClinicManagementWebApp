@@ -25,7 +25,7 @@ public class DoctorMedicinesServlet extends HttpServlet {
     protected void doGet(HttpServletRequest request, HttpServletResponse response)
             throws ServletException, IOException {
         response.setHeader("Cache-Control", "no-store, private");
-        if (!requireDoctor(request, response)) {
+        if (!requireManagerOrDoctor(request, response)) {
             return;
         }
 
@@ -61,7 +61,7 @@ public class DoctorMedicinesServlet extends HttpServlet {
             throws ServletException, IOException {
         response.setHeader("Cache-Control", "no-store, private");
         request.setCharacterEncoding("UTF-8");
-        if (!requireDoctor(request, response)) {
+        if (!requireManagerOrDoctor(request, response)) {
             return;
         }
 
@@ -187,15 +187,20 @@ public class DoctorMedicinesServlet extends HttpServlet {
         request.getRequestDispatcher(FORM_PAGE).forward(request, response);
     }
 
-    private boolean requireDoctor(HttpServletRequest request, HttpServletResponse response)
+    private boolean requireManagerOrDoctor(HttpServletRequest request, HttpServletResponse response)
             throws IOException {
         HttpSession session = request.getSession(false);
         if (session == null || !(session.getAttribute("UserID") instanceof Integer)) {
             response.sendRedirect(request.getContextPath() + "/login");
             return false;
         }
-        if (!"DOCTOR".equals(session.getAttribute("Role"))
-                || !(session.getAttribute("DoctorID") instanceof Integer doctorID) || doctorID <= 0) {
+        Object role = session.getAttribute("Role");
+        if ("DOCTOR".equals(role)
+                && (!(session.getAttribute("DoctorID") instanceof Integer doctorID) || doctorID <= 0)) {
+            response.sendError(HttpServletResponse.SC_FORBIDDEN);
+            return false;
+        }
+        if (!"DOCTOR".equals(role) && !"MANAGER".equals(role)) {
             response.sendError(HttpServletResponse.SC_FORBIDDEN);
             return false;
         }

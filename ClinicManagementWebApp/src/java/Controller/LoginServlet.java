@@ -59,8 +59,9 @@ public class LoginServlet extends HttpServlet {
                 session.setAttribute("DoctorID", user.getDoctorID());
             }
             String destination = switch (user.getRole()) {
-                case "DOCTOR" -> "/patients";
+                case "DOCTOR" -> "/doctor/appointments";
                 case "PATIENT" -> "/appointments";
+                case "MANAGER" -> "/admin/appointments";
                 default -> "/";
             };
             response.sendRedirect(request.getContextPath() + destination);

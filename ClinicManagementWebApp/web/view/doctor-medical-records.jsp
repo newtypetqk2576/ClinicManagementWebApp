@@ -5,7 +5,7 @@
     <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1">
-        <title>Medical records</title>
+        <title><c:choose><c:when test="${managerMode}">Manager medical records</c:when><c:otherwise>Medical records</c:otherwise></c:choose></title>
         <link rel="stylesheet" href="${pageContext.request.contextPath}/css/common-layout.css">
     </head>
     <body>
@@ -14,7 +14,7 @@
         <main>
             <h1>Medical records</h1>
             <c:if test="${not empty message}"><p role="status"><c:out value="${message}"/></p></c:if>
-            <c:url var="newRecordUrl" value="/doctor/medical-records/new"/>
+            <c:url var="newRecordUrl" value="${routeBase}/new"/>
             <p><a href="<c:out value="${newRecordUrl}"/>">Create medical record</a></p>
             <c:choose>
                 <c:when test="${empty records}">
@@ -41,7 +41,7 @@
                                     <td><c:out value="${record.symptoms}"/></td>
                                     <td><c:out value="${record.status}"/></td>
                                     <td>
-                                        <c:url var="detailUrl" value="/doctor/medical-records">
+                                        <c:url var="detailUrl" value="${routeBase}">
                                             <c:param name="id" value="${record.medicalRecordID}"/>
                                         </c:url>
                                         <a href="<c:out value="${detailUrl}"/>">Detail / edit</a>

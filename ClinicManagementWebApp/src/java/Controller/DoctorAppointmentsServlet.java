@@ -1,8 +1,10 @@
 package Controller;
 
 import Dal.AppointmentDAO;
+import Dal.DoctorDAO;
 import Dal.PatientDAO;
 import Model.Appointment;
+import Model.Doctor;
 import Model.Patient;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.annotation.WebServlet;
@@ -23,7 +25,11 @@ import java.util.logging.Logger;
 @WebServlet(urlPatterns = {
     "/doctor/appointments",
     "/doctor/appointments/new",
-    "/doctor/patients/search"
+    "/doctor/patients/search",
+    "/admin/appointments",
+    "/admin/appointments/new",
+    "/admin/appointments/search-patients",
+    "/admin/appointments/search-doctors"
 })
 public class DoctorAppointmentsServlet extends HttpServlet {
     private static final Logger LOGGER = Logger.getLogger(DoctorAppointmentsServlet.class.getName());
@@ -34,24 +40,34 @@ public class DoctorAppointmentsServlet extends HttpServlet {
     @Override
     protected void doGet(HttpServletRequest request, HttpServletResponse response)
             throws ServletException, IOException {
-        Integer doctorID = requireDoctor(request, response);
-        if (doctorID == null) {
+        if (!requireAccess(request, response)) {
             return;
         }
+        boolean manager = isManager(request);
+        Integer doctorID = manager ? null : (Integer) request.getSession(false).getAttribute("DoctorID");
         String path = request.getServletPath();
-        if ("/doctor/patients/search".equals(path)) {
+        if ("/doctor/patients/search".equals(path) || path.endsWith("/search-patients")) {
             searchPatients(request, response);
+            return;
+        }
+        if ("/admin/appointments/search-doctors".equals(path)) {
+            searchDoctors(request, response);
             return;
         }
 
         HttpSession session = request.getSession(false);
-        request.setAttribute("message", session.getAttribute("doctorAppointmentMessage"));
-        request.setAttribute("error", session.getAttribute("doctorAppointmentError"));
-        session.removeAttribute("doctorAppointmentMessage");
-        session.removeAttribute("doctorAppointmentError");
+        String messageKey = manager ? "managerAppointmentMessage" : "doctorAppointmentMessage";
+        String errorKey = manager ? "managerAppointmentError" : "doctorAppointmentError";
+        request.setAttribute("message", session.getAttribute(messageKey));
+        request.setAttribute("error", session.getAttribute(errorKey));
+        session.removeAttribute(messageKey);
+        session.removeAttribute(errorKey);
         request.setAttribute("doctorID", doctorID);
+        request.setAttribute("managerMode", manager);
+        request.setAttribute("routeBase", manager ? "/admin/appointments" : "/doctor/appointments");
+        request.setAttribute("recordBasePath", manager ? "/admin/medical-records" : "/doctor/medical-records");
 
-        if ("/doctor/appointments/new".equals(path)) {
+        if (path.endsWith("/new")) {
             renderCreateForm(request, response, null);
             return;
         }
@@ -60,14 +76,17 @@ public class DoctorAppointmentsServlet extends HttpServlet {
         try {
             AppointmentDAO appointmentDAO = new AppointmentDAO(getServletContext());
             if (idValue == null) {
-                List<Appointment> appointments = appointmentDAO.getAllForDoctor(doctorID);
+                List<Appointment> appointments = manager
+                        ? appointmentDAO.getAllForManager() : appointmentDAO.getAllForDoctor(doctorID);
                 request.setAttribute("appointments", appointments);
                 request.getRequestDispatcher(LIST_PAGE).forward(request, response);
                 return;
             }
 
             int appointmentID = parseID(idValue);
-            Appointment appointment = appointmentDAO.getDetailsForDoctor(appointmentID, doctorID);
+            Appointment appointment = manager
+                    ? appointmentDAO.getDetailsForManager(appointmentID)
+                    : appointmentDAO.getDetailsForDoctor(appointmentID, doctorID);
             if (appointment == null) {
                 response.sendError(HttpServletResponse.SC_NOT_FOUND);
                 return;
@@ -87,13 +106,14 @@ public class DoctorAppointmentsServlet extends HttpServlet {
     protected void doPost(HttpServletRequest request, HttpServletResponse response)
             throws ServletException, IOException {
         request.setCharacterEncoding("UTF-8");
-        Integer doctorID = requireDoctor(request, response);
-        if (doctorID == null) {
+        if (!requireAccess(request, response)) {
             return;
         }
+        boolean manager = isManager(request);
+        Integer doctorID = manager ? null : (Integer) request.getSession(false).getAttribute("DoctorID");
         String action = request.getParameter("action");
         if ("create".equals(action)) {
-            create(request, response, doctorID);
+            create(request, response, doctorID, manager);
             return;
         }
         if (!"confirm".equals(action)) {
@@ -111,34 +131,50 @@ public class DoctorAppointmentsServlet extends HttpServlet {
 
         HttpSession session = request.getSession(false);
         try {
-            if (new AppointmentDAO(getServletContext()).confirmForDoctor(appointmentID, doctorID)) {
-                session.setAttribute("doctorAppointmentMessage", "Appointment confirmed.");
+            boolean confirmed = manager
+                    ? new AppointmentDAO(getServletContext()).confirmForManager(appointmentID)
+                    : new AppointmentDAO(getServletContext()).confirmForDoctor(appointmentID, doctorID);
+            if (confirmed) {
+                session.setAttribute(manager ? "managerAppointmentMessage" : "doctorAppointmentMessage",
+                        "Appointment confirmed.");
             } else {
-                session.setAttribute("doctorAppointmentError",
-                        "This appointment is not assigned to you or is no longer BOOKED.");
+                session.setAttribute(manager ? "managerAppointmentError" : "doctorAppointmentError",
+                        manager ? "This appointment is no longer BOOKED."
+                                : "This appointment is not assigned to you or is no longer BOOKED.");
             }
         } catch (SQLException ex) {
-            LOGGER.log(Level.SEVERE, "Unable to confirm doctor appointment.", ex);
-            session.setAttribute("doctorAppointmentError",
+            LOGGER.log(Level.SEVERE, "Unable to confirm appointment.", ex);
+            session.setAttribute(manager ? "managerAppointmentError" : "doctorAppointmentError",
                     "Appointment confirmation is temporarily unavailable. Please try again.");
         }
-        response.sendRedirect(request.getContextPath() + "/doctor/appointments?id=" + appointmentID);
+        response.sendRedirect(request.getContextPath()
+                + (manager ? "/admin/appointments?id=" : "/doctor/appointments?id=") + appointmentID);
     }
 
-    private void create(HttpServletRequest request, HttpServletResponse response, int doctorID)
+    private void create(HttpServletRequest request, HttpServletResponse response, Integer signedInDoctorID,
+            boolean manager)
             throws ServletException, IOException {
         String patientIDValue = value(request.getParameter("patientID")).trim();
+        String doctorIDValue = manager ? value(request.getParameter("doctorID")).trim() : "";
         String appointmentDateValue = value(request.getParameter("appointmentDate")).trim();
         String reason = value(request.getParameter("reason")).trim();
         request.setAttribute("patientIDValue", patientIDValue);
         request.setAttribute("appointmentDateValue", appointmentDateValue);
         request.setAttribute("reasonValue", reason);
+        request.setAttribute("doctorIDValue", doctorIDValue);
+        request.setAttribute("managerMode", manager);
+        request.setAttribute("routeBase", manager ? "/admin/appointments" : "/doctor/appointments");
+        request.setAttribute("recordBasePath", manager ? "/admin/medical-records" : "/doctor/medical-records");
 
         int patientID;
+        int doctorID;
         try {
             patientID = parseID(patientIDValue);
+            doctorID = manager ? parseID(doctorIDValue) : signedInDoctorID;
         } catch (NumberFormatException ex) {
-            renderCreateForm(request, response, "Select a patient from the search results.");
+            renderCreateForm(request, response, manager
+                    ? "Select a patient and an active doctor from the search results."
+                    : "Select a patient from the search results.");
             return;
         }
 
@@ -167,11 +203,13 @@ public class DoctorAppointmentsServlet extends HttpServlet {
             }
             if (!new AppointmentDAO(getServletContext()).createForPatient(
                     patientID, doctorID, appointmentDate, reason.isEmpty() ? null : reason)) {
-                renderCreateForm(request, response, "This doctor account is no longer active.");
+                renderCreateForm(request, response, "The selected doctor account is no longer active.");
                 return;
             }
-            request.getSession(false).setAttribute("doctorAppointmentMessage", "Appointment created.");
-            response.sendRedirect(request.getContextPath() + "/doctor/appointments");
+            request.getSession(false).setAttribute(manager
+                    ? "managerAppointmentMessage" : "doctorAppointmentMessage", "Appointment created.");
+            response.sendRedirect(request.getContextPath()
+                    + (manager ? "/admin/appointments" : "/doctor/appointments"));
         } catch (SQLException ex) {
             LOGGER.log(Level.SEVERE, "Unable to create doctor appointment.", ex);
             renderCreateForm(request, response,
@@ -214,8 +252,46 @@ public class DoctorAppointmentsServlet extends HttpServlet {
         }
     }
 
+    private void searchDoctors(HttpServletRequest request, HttpServletResponse response)
+            throws IOException {
+        String term = value(request.getParameter("term")).trim();
+        if (term.length() > 100) {
+            response.sendError(HttpServletResponse.SC_BAD_REQUEST);
+            return;
+        }
+        try {
+            List<Doctor> doctors = new DoctorDAO(getServletContext()).searchActiveByNameOrPhone(term);
+            response.setContentType("application/json");
+            response.setCharacterEncoding("UTF-8");
+            response.setHeader("Cache-Control", "no-store, private");
+            PrintWriter writer = response.getWriter();
+            writer.write("[");
+            for (int i = 0; i < doctors.size(); i++) {
+                Doctor doctor = doctors.get(i);
+                if (i > 0) {
+                    writer.write(",");
+                }
+                writer.write("{\"id\":");
+                writer.write(Integer.toString(doctor.getDoctorID()));
+                writer.write(",\"name\":\"");
+                writer.write(jsonEscape(doctor.getFullName()));
+                writer.write("\",\"phone\":\"");
+                writer.write(jsonEscape(value(doctor.getPhone())));
+                writer.write("\"}");
+            }
+            writer.write("]");
+        } catch (SQLException ex) {
+            LOGGER.log(Level.SEVERE, "Unable to search doctors for manager appointment.", ex);
+            response.sendError(HttpServletResponse.SC_INTERNAL_SERVER_ERROR,
+                    "Doctor search is temporarily unavailable.");
+        }
+    }
+
     private void renderCreateForm(HttpServletRequest request, HttpServletResponse response, String error)
             throws ServletException, IOException {
+        boolean manager = isManager(request);
+        request.setAttribute("managerMode", manager);
+        request.setAttribute("routeBase", manager ? "/admin/appointments" : "/doctor/appointments");
         request.setAttribute("error", error);
         request.getRequestDispatcher(CREATE_PAGE).forward(request, response);
     }
@@ -247,23 +323,32 @@ public class DoctorAppointmentsServlet extends HttpServlet {
         return escaped.toString();
     }
 
-    private Integer requireDoctor(HttpServletRequest request, HttpServletResponse response)
+    private boolean requireAccess(HttpServletRequest request, HttpServletResponse response)
             throws IOException {
         HttpSession session = request.getSession(false);
         if (session == null || !(session.getAttribute("UserID") instanceof Integer)) {
             response.sendRedirect(request.getContextPath() + "/login");
-            return null;
+            return false;
         }
-        if (!"DOCTOR".equals(session.getAttribute("Role"))) {
+        if ("MANAGER".equals(session.getAttribute("Role"))
+                && request.getServletPath().startsWith("/admin/")) {
+            return true;
+        }
+        if (!"DOCTOR".equals(session.getAttribute("Role"))
+                || !request.getServletPath().startsWith("/doctor/")) {
             response.sendError(HttpServletResponse.SC_FORBIDDEN);
-            return null;
+            return false;
         }
         Object value = session.getAttribute("DoctorID");
         if (!(value instanceof Integer doctorID) || doctorID <= 0) {
             response.sendError(HttpServletResponse.SC_FORBIDDEN);
-            return null;
+            return false;
         }
-        return doctorID;
+        return true;
+    }
+
+    private boolean isManager(HttpServletRequest request) {
+        return "MANAGER".equals(request.getSession(false).getAttribute("Role"));
     }
 
     private int parseID(String value) {

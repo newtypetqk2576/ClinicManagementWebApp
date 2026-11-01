@@ -14,11 +14,14 @@
         <main>
             <h1><c:choose><c:when test="${createMode}">Create medical record</c:when><c:otherwise>Medical record detail / edit</c:otherwise></c:choose></h1>
             <c:if test="${not empty error}"><p role="alert"><c:out value="${error}"/></p></c:if>
-            <c:url var="recordsUrl" value="/doctor/medical-records"/>
-            <c:url var="formAction" value="/doctor/medical-records"/>
-            <c:url var="patientSearchUrl" value="/doctor/medical-records/search-patients"/>
-            <c:url var="serviceSearchUrl" value="/doctor/medical-records/search-services"/>
-            <c:url var="medicineSearchUrl" value="/doctor/medical-records/search-medicines"/>
+            <c:if test="${not empty message}"><p role="status"><c:out value="${message}"/></p></c:if>
+            <c:url var="recordsUrl" value="${routeBase}"/>
+            <c:url var="formAction" value="${routeBase}"/>
+            <c:url var="confirmPaymentUrl" value="${routeBase}/confirm-payment"/>
+            <c:url var="patientSearchUrl" value="${routeBase}/search-patients"/>
+            <c:url var="doctorSearchUrl" value="${routeBase}/search-doctors"/>
+            <c:url var="serviceSearchUrl" value="${routeBase}/search-services"/>
+            <c:url var="medicineSearchUrl" value="${routeBase}/search-medicines"/>
 
             <c:if test="${not createMode}">
                 <dl>
@@ -50,6 +53,7 @@
                             <dl>
                                 <dt>Patient</dt><dd><c:out value="${appointment.patient.fullName}"/></dd>
                                 <dt>Patient phone</dt><dd><c:out value="${appointment.patient.phone}"/></dd>
+                                <dt>Doctor</dt><dd><c:out value="${appointment.doctorName}"/></dd>
                                 <dt>Appointment</dt><dd><c:out value="${appointment.appointmentDate}"/> — <c:out value="${appointment.reason}"/></dd>
                             </dl>
                         </c:when>
@@ -83,10 +87,34 @@
                         </c:otherwise>
                     </c:choose>
                     <c:if test="${createMode}">
-                        <p>Doctor: <c:out value="${doctor.fullName}"/>
-                            <c:if test="${not empty doctor.phone}"> — <c:out value="${doctor.phone}"/></c:if>
-                            (signed-in Doctor)
-                        </p>
+                        <c:choose>
+                            <c:when test="${managerMode and empty appointment}">
+                                <label for="doctorSearch">Search doctor by name or phone</label>
+                                <input id="doctorSearch" type="search" autocomplete="off"
+                                       data-search-url="<c:out value="${doctorSearchUrl}"/>">
+                                <p id="doctorSearchStatus" role="status">Search to see active doctors.</p>
+                                <label for="doctorResults">Select doctor</label>
+                                <select id="doctorResults" size="1">
+                                    <option value="">Search above, then select a doctor</option>
+                                    <c:if test="${not empty doctorIDValue}">
+                                        <option value="<c:out value="${doctorIDValue}"/>" selected>
+                                            <c:out value="${doctorNameValue}"/> — <c:out value="${doctorPhoneValue}"/>
+                                        </option>
+                                    </c:if>
+                                </select>
+                                <input id="doctorID" type="hidden" name="doctorID"
+                                       value="<c:out value="${doctorIDValue}"/>">
+                            </c:when>
+                            <c:when test="${managerMode}">
+                                <p>Doctor: <c:out value="${appointment.doctorName}"/> (from appointment)</p>
+                            </c:when>
+                            <c:otherwise>
+                                <p>Doctor: <c:out value="${doctor.fullName}"/>
+                                    <c:if test="${not empty doctor.phone}"> — <c:out value="${doctor.phone}"/></c:if>
+                                    (signed-in Doctor)
+                                </p>
+                            </c:otherwise>
+                        </c:choose>
                     </c:if>
                 </section>
 
@@ -204,6 +232,10 @@
                                 <dt>Payment status</dt><dd><c:out value="${record.invoice.paymentStatus}"/></dd>
                                 <dt>Notes</dt><dd><c:out value="${record.invoice.notes}"/></dd>
                             </dl>
+                            <c:if test="${record.invoice.paymentStatus eq 'UNPAID'}">
+                                <button type="submit" formaction="<c:out value="${confirmPaymentUrl}"/>"
+                                        formnovalidate>Confirm payment</button>
+                            </c:if>
                         </c:when>
                         <c:otherwise>
                             <p>No invoice exists for this record. If selected, the server calculates the total from saved service and medicine prices; payment status starts as UNPAID.</p>
@@ -286,6 +318,64 @@
                             patientID.value = selected && selected.value ? selected.value : "";
                             patientName.value = selected ? selected.dataset.name || "" : "";
                             patientPhone.value = selected ? selected.dataset.phone || "" : "";
+                        });
+                    }
+
+                    const doctorSearch = document.getElementById("doctorSearch");
+                    if (doctorSearch) {
+                        const results = document.getElementById("doctorResults");
+                        const status = document.getElementById("doctorSearchStatus");
+                        const doctorID = document.getElementById("doctorID");
+                        let timer;
+                        let activeRequest;
+                        doctorSearch.addEventListener("input", () => {
+                            window.clearTimeout(timer);
+                            if (activeRequest) {
+                                activeRequest.abort();
+                            }
+                            results.replaceChildren(new Option("Search above, then select a doctor", ""));
+                            doctorID.value = "";
+                            const term = doctorSearch.value.trim();
+                            if (!term) {
+                                status.textContent = "Search to see active doctors.";
+                                return;
+                            }
+                            status.textContent = "Searching doctors...";
+                            timer = window.setTimeout(async () => {
+                                activeRequest = new AbortController();
+                                const url = new URL(doctorSearch.dataset.searchUrl, window.location.href);
+                                url.searchParams.set("term", term);
+                                try {
+                                    const result = await fetch(url, {
+                                        headers: {Accept: "application/json"},
+                                        signal: activeRequest.signal
+                                    });
+                                    if (!result.ok) {
+                                        throw new Error("Doctor search failed.");
+                                    }
+                                    const doctors = await result.json();
+                                    if (!Array.isArray(doctors)
+                                            || doctors.some((item) => !Number.isInteger(item.id)
+                                                || item.id <= 0 || typeof item.name !== "string"
+                                                || typeof item.phone !== "string")) {
+                                        throw new Error("Invalid doctor search response.");
+                                    }
+                                    doctors.forEach((doctor) => {
+                                        results.append(new Option(
+                                            doctor.name + " — " + doctor.phone, doctor.id));
+                                    });
+                                    status.textContent = doctors.length
+                                        ? doctors.length + " matching doctor(s) found."
+                                        : "No matching active doctors were found.";
+                                } catch (error) {
+                                    if (error.name !== "AbortError") {
+                                        status.textContent = "Doctor search is unavailable. Please try again.";
+                                    }
+                                }
+                            }, 250);
+                        });
+                        results.addEventListener("change", () => {
+                            doctorID.value = results.value;
                         });
                     }
 

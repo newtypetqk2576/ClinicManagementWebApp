@@ -53,6 +53,33 @@ public class AppointmentDAO extends DBContext {
         return appointments;
     }
 
+    public List<Appointment> getAllForManager() throws SQLException {
+        String sql = "SELECT a.AppointmentID, a.PatientID, p.FullName AS PatientName, a.DoctorID, "
+                + "d.FullName AS DoctorName, a.AppointmentDate, a.Reason, a.Status, a.CreatedAt "
+                + "FROM Appointments a JOIN Patients p ON p.PatientID = a.PatientID "
+                + "JOIN Doctors d ON d.DoctorID = a.DoctorID "
+                + "ORDER BY a.AppointmentDate DESC";
+        List<Appointment> appointments = new ArrayList<>();
+        try (Connection conn = requireConnection();
+                PreparedStatement statement = conn.prepareStatement(sql);
+                ResultSet resultSet = statement.executeQuery()) {
+            while (resultSet.next()) {
+                Appointment appointment = new Appointment();
+                appointment.setAppointmentID(resultSet.getInt("AppointmentID"));
+                appointment.setPatientID(resultSet.getInt("PatientID"));
+                appointment.setPatientName(resultSet.getString("PatientName"));
+                appointment.setDoctorID(resultSet.getInt("DoctorID"));
+                appointment.setDoctorName(resultSet.getString("DoctorName"));
+                appointment.setAppointmentDate(resultSet.getTimestamp("AppointmentDate").toLocalDateTime());
+                appointment.setReason(resultSet.getString("Reason"));
+                appointment.setStatus(resultSet.getString("Status"));
+                appointment.setCreatedAt(resultSet.getTimestamp("CreatedAt").toLocalDateTime());
+                appointments.add(appointment);
+            }
+        }
+        return appointments;
+    }
+
     public Appointment getDetails(int appointmentID) throws SQLException {
         return getDetails(appointmentID, null);
     }
@@ -62,6 +89,10 @@ public class AppointmentDAO extends DBContext {
             throw new IllegalArgumentException("DoctorID must be positive.");
         }
         return getDetails(appointmentID, doctorID);
+    }
+
+    public Appointment getDetailsForManager(int appointmentID) throws SQLException {
+        return getDetails(appointmentID, null);
     }
 
     private Appointment getDetails(int appointmentID, Integer doctorID) throws SQLException {
@@ -118,6 +149,16 @@ public class AppointmentDAO extends DBContext {
                 PreparedStatement statement = conn.prepareStatement(sql)) {
             statement.setInt(1, appointmentID);
             statement.setInt(2, doctorID);
+            return statement.executeUpdate() == 1;
+        }
+    }
+
+    public boolean confirmForManager(int appointmentID) throws SQLException {
+        String sql = "UPDATE Appointments SET Status = 'CONFIRMED' "
+                + "WHERE AppointmentID = ? AND Status = 'BOOKED'";
+        try (Connection conn = requireConnection();
+                PreparedStatement statement = conn.prepareStatement(sql)) {
+            statement.setInt(1, appointmentID);
             return statement.executeUpdate() == 1;
         }
     }

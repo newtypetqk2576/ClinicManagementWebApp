@@ -21,7 +21,6 @@
                 <label>Confirm new password <input type="password" name="confirmPassword" maxlength="255" autocomplete="new-password" required></label>
                 <button type="submit">Change password</button>
             </form>
-            <p><a href="${pageContext.request.contextPath}/">Home</a></p>
         </main>
     </body>
 </html>
