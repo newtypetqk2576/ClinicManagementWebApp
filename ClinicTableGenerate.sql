@@ -1,9 +1,11 @@
+-- Clinic Management schema
+-- Run this script first to create the database and application tables.
 CREATE DATABASE ClinicManagement;
 GO
-
 USE ClinicManagement;
-GO
 
+-- 01. CORE DATA / DỮ LIỆU CƠ BẢN
+-- Patient, doctor and appointment information / Thông tin bệnh nhân, bác sĩ và lịch hẹn
 CREATE TABLE Patients (
     PatientID INT IDENTITY(1,1) PRIMARY KEY,
     FullName NVARCHAR(100) NOT NULL,
@@ -22,10 +24,6 @@ CREATE TABLE Doctors (
     Phone VARCHAR(15) NULL,
     IsActive BIT NOT NULL DEFAULT 1
 );
-
-
-
-
 CREATE TABLE Appointments (
     AppointmentID INT IDENTITY(1,1) PRIMARY KEY,
     PatientID INT NOT NULL,
@@ -55,9 +53,7 @@ CREATE TABLE Appointments (
         ))
 );
 
-
-
-     SELECT
+SELECT
     a.AppointmentID,
     p.FullName AS PatientName,
     p.Phone,
@@ -73,9 +69,8 @@ JOIN Doctors d
     ON a.DoctorID = d.DoctorID
 ORDER BY a.AppointmentDate DESC;
 
-USE ClinicManagement;
-GO
-
+-- 02. CATALOG / DANH MỤC
+-- Available services and medicines / Danh sách dịch vụ và thuốc
 CREATE TABLE Services (
     ServiceID INT IDENTITY(1,1) PRIMARY KEY,
     ServiceName NVARCHAR(150) NOT NULL,
@@ -87,7 +82,6 @@ CREATE TABLE Services (
     CONSTRAINT CK_Services_Price
         CHECK (Price >= 0)
 );
-GO
 
 CREATE TABLE Medicines (
     MedicineID INT IDENTITY(1,1) PRIMARY KEY,
@@ -105,16 +99,10 @@ CREATE TABLE Medicines (
     CONSTRAINT CK_Medicines_Stock
         CHECK (StockQuantity >= 0)
 );
-GO
-   
 
-   USE ClinicManagement;
-GO
-
--- =========================================
--- 1. MEDICAL RECORDS
--- Hồ sơ khám bệnh
--- =========================================
+-- 03. MEDICAL RECORDS / HỒ SƠ KHÁM BỆNH
+-- Visit records, services and prescriptions / Hồ sơ khám, dịch vụ và đơn thuốc
+-- 1. MEDICAL RECORDS / Hồ sơ khám bệnh
 CREATE TABLE MedicalRecords (
     MedicalRecordID INT IDENTITY(1,1) PRIMARY KEY,
 
@@ -157,13 +145,8 @@ CREATE TABLE MedicalRecords (
             'CANCELLED'
         ))
 );
-GO
 
-
--- =========================================
--- 2. MEDICAL RECORD SERVICES
--- Dịch vụ trong từng lần khám
--- =========================================
+-- 2. MEDICAL RECORD SERVICES / Dịch vụ trong từng lần khám
 CREATE TABLE MedicalRecordServices (
     MedicalRecordServiceID INT IDENTITY(1,1)
         PRIMARY KEY,
@@ -190,13 +173,8 @@ CREATE TABLE MedicalRecordServices (
     CONSTRAINT CK_MedicalRecordServices_Price
         CHECK (UnitPrice >= 0)
 );
-GO
 
-
--- =========================================
--- 3. PRESCRIPTIONS
--- Thông tin đơn thuốc
--- =========================================
+-- 3. PRESCRIPTIONS / Thông tin đơn thuốc
 CREATE TABLE Prescriptions (
     PrescriptionID INT IDENTITY(1,1) PRIMARY KEY,
 
@@ -224,13 +202,8 @@ CREATE TABLE Prescriptions (
             'CANCELLED'
         ))
 );
-GO
 
-
--- =========================================
--- 4. PRESCRIPTION DETAILS
--- Chi tiết các loại thuốc trong đơn
--- =========================================
+-- 4. PRESCRIPTION DETAILS / Chi tiết các loại thuốc trong đơn
 CREATE TABLE PrescriptionDetails (
     PrescriptionDetailID INT IDENTITY(1,1)
         PRIMARY KEY,
@@ -264,10 +237,9 @@ CREATE TABLE PrescriptionDetails (
     CONSTRAINT CK_PrescriptionDetails_Duration
         CHECK (DurationDays IS NULL OR DurationDays > 0)
 );
-GO
-USE ClinicManagement;
-GO
 
+-- 04. INVOICES / HÓA ĐƠN
+-- One invoice for each medical record / Mỗi hồ sơ khám có một hóa đơn
 CREATE TABLE Invoices (
     InvoiceID INT IDENTITY(1,1) PRIMARY KEY,
 
@@ -339,10 +311,9 @@ CREATE TABLE Invoices (
             )
         )
 );
-GO
 
-
-
+-- 05. ACCOUNTS / TÀI KHOẢN
+-- User accounts and optional patient/doctor links / Tài khoản và liên kết bệnh nhân/bác sĩ
 CREATE TABLE Users (
     UserID INT IDENTITY(1,1) PRIMARY KEY,
 
@@ -360,7 +331,7 @@ CREATE TABLE Users (
     CONSTRAINT UQ_Users_Username UNIQUE (Username)
 );
 
--- Liên kết tài khoản với bệnh nhân
+-- Link accounts to patients / Liên kết tài khoản với bệnh nhân
 ALTER TABLE Patients
 ADD UserID INT NULL;
 
@@ -368,11 +339,7 @@ ALTER TABLE Patients
 ADD CONSTRAINT FK_Patients_Users
     FOREIGN KEY (UserID)
     REFERENCES Users(UserID);
-
-
-
-
--- Liên kết tài khoản với bác sĩ
+-- Link accounts to doctors / Liên kết tài khoản với bác sĩ
 ALTER TABLE Doctors
 ADD UserID INT NULL;
 
@@ -381,15 +348,9 @@ ADD CONSTRAINT FK_Doctors_Users
     FOREIGN KEY (UserID)
     REFERENCES Users(UserID);
 
-
- 
- CREATE UNIQUE INDEX UQ_Doctors_UserID
+CREATE UNIQUE INDEX UQ_Doctors_UserID
 ON Doctors(UserID)
 WHERE UserID IS NOT NULL;
-
-
-
-    CREATE UNIQUE INDEX UQ_Patients_UserID
+CREATE UNIQUE INDEX UQ_Patients_UserID
 ON Patients(UserID)
 WHERE UserID IS NOT NULL;
-

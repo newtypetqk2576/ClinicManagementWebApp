@@ -1,4 +1,8 @@
+-- Clinic Management seed data
+-- Run in ClinicManagement after ClinicTableGenerate.sql / Chạy trong ClinicManagement sau ClinicTableGenerate.sql
 
+-- 01. CORE DATA / DỮ LIỆU CƠ BẢN
+-- Patients, doctors and appointments / Bệnh nhân, bác sĩ và lịch hẹn
 INSERT INTO Patients
     (FullName, DateOfBirth, Gender, Phone, Email, Address)
 VALUES
@@ -16,16 +20,16 @@ VALUES
 
 
 
-     INSERT INTO Doctors (FullName, Specialty, Phone)
+INSERT INTO Doctors (FullName, Specialty, Phone)
 VALUES
     (N'Phạm Khánh Linh', N'Nội tổng quát', '0912000001'),
     (N'Trần q Khải', N'Da liễu', '0912000002'),
     (N'Lê Thanh Loan', N'Tai mũi họng', '0912000003');
-    SELECT * FROM Patients;
+SELECT * FROM Patients;
 SELECT * FROM Doctors;
 
 
-
+-- Appointments / Lịch hẹn
 INSERT INTO Appointments
     (PatientID, DoctorID, AppointmentDate, Reason, Status)
 VALUES
@@ -37,9 +41,9 @@ VALUES
 
     (3, 3, '2026-10-14T14:00:00',
      N'Đau họng', 'BOOKED');
-
-
-      INSERT INTO Services
+-- 02. CATALOG / DANH MỤC
+-- Services and medicines / Dịch vụ và thuốc
+INSERT INTO Services
     (ServiceName, Description, Price, IsActive)
 VALUES
     (N'Khám tổng quát',
@@ -81,9 +85,6 @@ VALUES
     (N'Khám chuyên khoa mắt',
      N'Kiểm tra và đánh giá sức khỏe mắt',
      180000, 1);
-
-
-GO
 INSERT INTO Medicines
     (MedicineName, ActiveIngredient, Unit,
      Price, StockQuantity, IsActive)
@@ -117,10 +118,10 @@ VALUES
 
     (N'Viên bổ sung canxi',
      N'Calcium', N'Viên', 4000, 180, 1);
-GO
 
-
--- 1. Tạo hồ sơ khám
+-- 03. MEDICAL RECORDS / HỒ SƠ KHÁM BỆNH
+-- Visit record, services and prescription details / Hồ sơ khám, dịch vụ và chi tiết đơn thuốc
+-- 1. MEDICAL RECORDS / Hồ sơ khám bệnh
 INSERT INTO MedicalRecords (
     AppointmentID,
     PatientID,
@@ -141,9 +142,8 @@ VALUES (
     N'Hồ sơ dùng để kiểm thử CRUD',
     'IN_PROGRESS'
 );
-GO
 
--- 2. Thêm dịch vụ vào hồ sơ khám
+-- 2. MEDICAL RECORD SERVICES / Dịch vụ trong từng lần khám
 INSERT INTO MedicalRecordServices (
     MedicalRecordID,
     ServiceID,
@@ -158,9 +158,8 @@ VALUES (
     150000,
     N'Dịch vụ khám tổng quát mẫu'
 );
-GO
 
--- 3. Tạo đơn thuốc nháp
+-- 3. PRESCRIPTIONS / Thông tin đơn thuốc
 INSERT INTO Prescriptions (
     MedicalRecordID,
     Notes,
@@ -171,9 +170,8 @@ VALUES (
     N'Đơn thuốc minh họa cho demo',
     'DRAFT'
 );
-GO
 
--- 4. Thêm thuốc vào đơn
+-- 4. PRESCRIPTION DETAILS / Chi tiết các loại thuốc trong đơn
 INSERT INTO PrescriptionDetails (
     PrescriptionID,
     MedicineID,
@@ -194,16 +192,16 @@ VALUES (
     1500,
     N'Dữ liệu minh họa, không phải chỉ định điều trị'
 );
-GO
 
--- 1. Tạo tài khoản bệnh nhân
+-- 04. ACCOUNTS / TÀI KHOẢN
+-- Create patient and doctor accounts / Tạo tài khoản bệnh nhân và bác sĩ
 INSERT INTO Users (Username, PasswordHash, Role)
 VALUES
 ('nguyenkhanhchi', '123456', 'PATIENT'),
 ('tranquangkhai',  '123456', 'PATIENT');
 
 
--- 2. Tạo tài khoản bác sĩ
+-- Add doctor accounts / Thêm tài khoản bác sĩ
 INSERT INTO Users (Username, PasswordHash, Role)
 VALUES
 ('phamkhanhlinh', '123456', 'MANAGER'),
@@ -211,7 +209,7 @@ VALUES
 ('lethanhloan',   '123456', 'DOCTOR');
 
 
--- 3. Liên kết tài khoản với bệnh nhân
+-- Link accounts to patients / Liên kết tài khoản với bệnh nhân
 UPDATE Patients
 SET UserID = (
     SELECT UserID FROM Users
@@ -227,7 +225,7 @@ SET UserID = (
 WHERE FullName = N'Trần Quang Khải';
 
 
--- 4. Liên kết tài khoản với bác sĩ
+-- Link accounts to doctors / Liên kết tài khoản với bác sĩ
 UPDATE Doctors
 SET UserID = (
     SELECT UserID FROM Users
@@ -250,7 +248,7 @@ SET UserID = (
 WHERE FullName = N'Lê Thanh Loan';
 
 
--- 5. Kiểm tra kết quả
+-- 05. VERIFICATION / KIỂM TRA KẾT QUẢ
 SELECT * FROM Users;
 SELECT * FROM Patients;
 SELECT * FROM Doctors;
