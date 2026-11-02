@@ -31,8 +31,15 @@
                 <input id="dateOfBirth" type="date" name="dateOfBirth"
                        value="<c:out value="${dateOfBirthValue}"/>">
                 <label for="gender">Gender</label>
-                <input id="gender" name="gender" maxlength="10"
-                       value="<c:out value="${patient.gender}"/>">
+                <select id="gender" name="gender" required>
+                    <option value="">Select a gender</option>
+                    <c:forEach var="genderOption" items="${genderOptions}">
+                        <option value="<c:out value="${genderOption}"/>"
+                                <c:if test="${patient.gender eq genderOption}">selected</c:if>>
+                            <c:out value="${genderOption}"/>
+                        </option>
+                    </c:forEach>
+                </select>
                 <label for="phone">Phone</label>
                 <input id="phone" name="phone" maxlength="15" required
                        value="<c:out value="${patient.phone}"/>">

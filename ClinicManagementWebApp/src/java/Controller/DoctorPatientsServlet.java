@@ -38,6 +38,7 @@ public class DoctorPatientsServlet extends HttpServlet {
 
         String idValue = request.getParameter("id");
         if (idValue == null) {
+            request.setAttribute("genderOptions", Patient.GENDER_OPTIONS);
             request.setAttribute("formPatient", new Patient());
             renderList(request, response);
             return;
@@ -49,6 +50,7 @@ public class DoctorPatientsServlet extends HttpServlet {
                 return;
             }
             request.setAttribute("patient", patient);
+            request.setAttribute("genderOptions", Patient.GENDER_OPTIONS);
             request.setAttribute("dateOfBirthValue",
                     patient.getDateOfBirth() == null ? "" : patient.getDateOfBirth().toString());
             request.getRequestDispatcher(EDIT_PAGE).forward(request, response);
@@ -87,6 +89,7 @@ public class DoctorPatientsServlet extends HttpServlet {
             patient = readPatient(request, 0);
         } catch (DateTimeParseException ex) {
             request.setAttribute("formPatient", readPatientFields(request));
+            request.setAttribute("genderOptions", Patient.GENDER_OPTIONS);
             request.setAttribute("dateOfBirthValue", value(request.getParameter("dateOfBirth")));
             request.setAttribute("error", "Enter a valid date of birth.");
             renderList(request, response);
@@ -94,9 +97,10 @@ public class DoctorPatientsServlet extends HttpServlet {
         }
         request.setAttribute("dateOfBirthValue",
                 patient.getDateOfBirth() == null ? "" : patient.getDateOfBirth().toString());
-        String validationError = validate(patient, true);
+        String validationError = validate(patient);
         if (validationError != null) {
             request.setAttribute("formPatient", patient);
+            request.setAttribute("genderOptions", Patient.GENDER_OPTIONS);
             request.setAttribute("error", validationError);
             renderList(request, response);
             return;
@@ -108,11 +112,13 @@ public class DoctorPatientsServlet extends HttpServlet {
             response.sendRedirect(request.getContextPath() + "/patients");
         } catch (DuplicatePhoneException ex) {
             request.setAttribute("formPatient", patient);
+            request.setAttribute("genderOptions", Patient.GENDER_OPTIONS);
             request.setAttribute("error", "A patient with this phone number already exists.");
             renderList(request, response);
         } catch (SQLException ex) {
             LOGGER.log(Level.SEVERE, "Unable to create doctor patient.", ex);
             request.setAttribute("formPatient", patient);
+            request.setAttribute("genderOptions", Patient.GENDER_OPTIONS);
             request.setAttribute("error", "Patient creation is temporarily unavailable. Please try again.");
             renderList(request, response);
         }
@@ -135,6 +141,7 @@ public class DoctorPatientsServlet extends HttpServlet {
             patient = readPatientFields(request);
             patient.setPatientID(patientID);
             request.setAttribute("patient", patient);
+            request.setAttribute("genderOptions", Patient.GENDER_OPTIONS);
             request.setAttribute("dateOfBirthValue", value(request.getParameter("dateOfBirth")));
             request.setAttribute("error", "Enter a valid date of birth.");
             request.getRequestDispatcher(EDIT_PAGE).forward(request, response);
@@ -142,9 +149,10 @@ public class DoctorPatientsServlet extends HttpServlet {
         }
         request.setAttribute("dateOfBirthValue",
                 patient.getDateOfBirth() == null ? "" : patient.getDateOfBirth().toString());
-        String validationError = validate(patient, false);
+        String validationError = validate(patient);
         if (validationError != null) {
             request.setAttribute("patient", patient);
+            request.setAttribute("genderOptions", Patient.GENDER_OPTIONS);
             request.setAttribute("error", validationError);
             request.getRequestDispatcher(EDIT_PAGE).forward(request, response);
             return;
@@ -159,11 +167,13 @@ public class DoctorPatientsServlet extends HttpServlet {
             response.sendRedirect(request.getContextPath() + "/patients?id=" + patientID);
         } catch (DuplicatePhoneException ex) {
             request.setAttribute("patient", patient);
+            request.setAttribute("genderOptions", Patient.GENDER_OPTIONS);
             request.setAttribute("error", "A patient with this phone number already exists.");
             request.getRequestDispatcher(EDIT_PAGE).forward(request, response);
         } catch (SQLException ex) {
             LOGGER.log(Level.SEVERE, "Unable to update doctor patient.", ex);
             request.setAttribute("patient", patient);
+            request.setAttribute("genderOptions", Patient.GENDER_OPTIONS);
             request.setAttribute("error", "Patient update is temporarily unavailable. Please try again.");
             request.getRequestDispatcher(EDIT_PAGE).forward(request, response);
         }
@@ -187,17 +197,12 @@ public class DoctorPatientsServlet extends HttpServlet {
         return patient;
     }
 
-    private String validate(Patient patient, boolean creating) {
+    private String validate(Patient patient) {
         if (patient.getFullName().isEmpty() || patient.getFullName().length() > 100) {
             return "Full name is required and must be at most 100 characters.";
         }
-        if (creating && !("Nam".equals(patient.getGender())
-                || "Nữ".equals(patient.getGender())
-                || "Không".equals(patient.getGender()))) {
+        if (!Patient.isValidGender(patient.getGender())) {
             return "Select a valid gender.";
-        }
-        if (patient.getGender() != null && patient.getGender().length() > 10) {
-            return "Gender must be at most 10 characters.";
         }
         if (patient.getPhone().isEmpty() || patient.getPhone().length() > 15) {
             return "Phone is required and must be at most 15 characters.";

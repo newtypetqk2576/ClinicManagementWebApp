@@ -2,8 +2,15 @@ package Model;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.List;
 
 public class Patient {
+    public static final List<String> GENDER_OPTIONS = List.of("Nam", "Nữ", "Không");
+
+    public static boolean isValidGender(String gender) {
+        return GENDER_OPTIONS.contains(gender);
+    }
+
     private int patientID;
     private String fullName;
     private LocalDate dateOfBirth;

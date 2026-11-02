@@ -2,6 +2,7 @@ package Controller;
 
 import Dal.UserDAO;
 import Dal.UserDAO.DuplicateRegistrationException;
+import Model.Patient;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.annotation.WebServlet;
 import jakarta.servlet.http.HttpServlet;
@@ -19,6 +20,7 @@ public class PatientRegistrationServlet extends HttpServlet {
     @Override
     protected void doGet(HttpServletRequest request, HttpServletResponse response)
             throws ServletException, IOException {
+        request.setAttribute("genderOptions", Patient.GENDER_OPTIONS);
         request.getRequestDispatcher("/auth/register.jsp").forward(request, response);
     }
 
@@ -30,12 +32,13 @@ public class PatientRegistrationServlet extends HttpServlet {
         String password = value(request.getParameter("password"));
         String confirmPassword = value(request.getParameter("confirmPassword"));
         String fullName = value(request.getParameter("fullName")).trim();
+        String gender = value(request.getParameter("gender"));
         String phone = value(request.getParameter("phone")).trim();
         String email = blankToNull(request.getParameter("email"));
         String address = blankToNull(request.getParameter("address"));
 
         String validationError = validate(username, password, confirmPassword,
-                fullName, phone, email, address);
+                fullName, gender, phone, email, address);
         if (validationError != null) {
             forwardError(request, response, validationError);
             return;
@@ -43,7 +46,7 @@ public class PatientRegistrationServlet extends HttpServlet {
 
         try {
             new UserDAO(getServletContext()).registerPatient(
-                    username, password, fullName, phone, email, address);
+                    username, password, fullName, gender, phone, email, address);
             response.sendRedirect(request.getContextPath() + "/login?registered=1");
         } catch (DuplicateRegistrationException ex) {
             String message = switch (ex.getField()) {
@@ -60,7 +63,7 @@ public class PatientRegistrationServlet extends HttpServlet {
     }
 
     private String validate(String username, String password, String confirmPassword,
-            String fullName, String phone, String email, String address) {
+            String fullName, String gender, String phone, String email, String address) {
         if (username.isEmpty() || username.length() > 50) {
             return "Username is required and must be at most 50 characters.";
         }
@@ -72,6 +75,9 @@ public class PatientRegistrationServlet extends HttpServlet {
         }
         if (fullName.isEmpty() || fullName.length() > 100) {
             return "Full name is required and must be at most 100 characters.";
+        }
+        if (!Patient.isValidGender(gender)) {
+            return "Select a valid gender.";
         }
         if (phone.isEmpty() || phone.length() > 15) {
             return "Phone is required and must be at most 15 characters.";
@@ -87,6 +93,8 @@ public class PatientRegistrationServlet extends HttpServlet {
 
     private void forwardError(HttpServletRequest request, HttpServletResponse response, String error)
             throws ServletException, IOException {
+        request.setAttribute("genderOptions", Patient.GENDER_OPTIONS);
+        request.setAttribute("gender", value(request.getParameter("gender")));
         request.setAttribute("error", error);
         request.getRequestDispatcher("/auth/register.jsp").forward(request, response);
     }

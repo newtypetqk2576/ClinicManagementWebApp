@@ -70,7 +70,7 @@ public class UserDAO extends DBContext {
         }
     }
 
-    public void registerPatient(String username, String password, String fullName,
+    public void registerPatient(String username, String password, String fullName, String gender,
             String phone, String email, String address) throws SQLException {
         try (Connection conn = requireConnection()) {
             boolean originalAutoCommit = conn.getAutoCommit();
@@ -101,13 +101,15 @@ public class UserDAO extends DBContext {
                     }
 
                     String insertPatient = "INSERT INTO Patients "
-                            + "(FullName, Phone, Email, Address, UserID) VALUES (?, ?, ?, ?, ?)";
+                            + "(FullName, Gender, Phone, Email, Address, UserID) "
+                            + "VALUES (?, ?, ?, ?, ?, ?)";
                     try (PreparedStatement statement = conn.prepareStatement(insertPatient)) {
                         statement.setString(1, fullName);
-                        statement.setString(2, phone);
-                        statement.setString(3, email);
-                        statement.setString(4, address);
-                        statement.setInt(5, userID);
+                        statement.setNString(2, gender);
+                        statement.setString(3, phone);
+                        statement.setString(4, email);
+                        statement.setString(5, address);
+                        statement.setInt(6, userID);
                         statement.executeUpdate();
                     }
                     conn.commit();

@@ -173,7 +173,7 @@ public class AppointmentDAO extends DBContext {
     private List<Appointment> queryAppointments(Integer patientID) throws SQLException {
         String sql = "SELECT a.AppointmentID, a.PatientID, a.DoctorID, d.FullName AS DoctorName, "
                 + "a.AppointmentDate, a.Reason, a.Status, a.CreatedAt, "
-                + "CASE WHEN a.Status IN ('BOOKED', 'CONFIRMED') "
+                + "CASE WHEN a.Status = 'BOOKED' "
                 + "AND a.AppointmentDate > SYSDATETIME() THEN CAST(1 AS BIT) ELSE CAST(0 AS BIT) "
                 + "END AS Cancellable "
                 + "FROM Appointments a JOIN Doctors d ON d.DoctorID = a.DoctorID "
@@ -226,7 +226,7 @@ public class AppointmentDAO extends DBContext {
     public boolean cancelForPatient(int appointmentID, int patientID) throws SQLException {
         String sql = "UPDATE Appointments SET Status = 'CANCELLED' "
                 + "WHERE AppointmentID = ? AND PatientID = ? "
-                + "AND Status IN ('BOOKED', 'CONFIRMED') "
+                + "AND Status = 'BOOKED' "
                 + "AND AppointmentDate > SYSDATETIME()";
         try (Connection conn = requireConnection();
                 PreparedStatement statement = conn.prepareStatement(sql)) {

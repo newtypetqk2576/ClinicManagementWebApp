@@ -29,9 +29,12 @@
                 <label for="gender">Gender</label>
                 <select id="gender" name="gender" required>
                     <option value="">Select a gender</option>
-                    <option value="Nam" <c:if test="${formPatient.gender eq 'Nam'}">selected</c:if>>Nam</option>
-                    <option value="Nữ" <c:if test="${formPatient.gender eq 'Nữ'}">selected</c:if>>Nữ</option>
-                    <option value="Không" <c:if test="${formPatient.gender eq 'Không'}">selected</c:if>>Không</option>
+                    <c:forEach var="genderOption" items="${genderOptions}">
+                        <option value="<c:out value="${genderOption}"/>"
+                                <c:if test="${formPatient.gender eq genderOption}">selected</c:if>>
+                            <c:out value="${genderOption}"/>
+                        </option>
+                    </c:forEach>
                 </select>
                 <label for="phone">Phone</label>
                 <input id="phone" name="phone" maxlength="15" required

@@ -17,6 +17,16 @@
                 <label>Password <input type="password" name="password" maxlength="255" autocomplete="new-password" required></label>
                 <label>Confirm password <input type="password" name="confirmPassword" maxlength="255" autocomplete="new-password" required></label>
                 <label>Full name <input name="fullName" maxlength="100" autocomplete="name" required></label>
+                <label for="gender">Gender</label>
+                <select id="gender" name="gender" required>
+                    <option value="">Select a gender</option>
+                    <c:forEach var="genderOption" items="${genderOptions}">
+                        <option value="<c:out value="${genderOption}"/>"
+                                <c:if test="${gender eq genderOption}">selected</c:if>>
+                            <c:out value="${genderOption}"/>
+                        </option>
+                    </c:forEach>
+                </select>
                 <label>Phone <input name="phone" maxlength="15" autocomplete="tel" required></label>
                 <label>Email <input type="email" name="email" maxlength="100" autocomplete="email"></label>
                 <label>Address <input name="address" maxlength="255" autocomplete="street-address"></label>
