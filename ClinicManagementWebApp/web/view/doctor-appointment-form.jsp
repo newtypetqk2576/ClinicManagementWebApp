@@ -15,12 +15,19 @@
             <h1>Create appointment</h1>
             <c:if test="${not empty error}"><p role="alert"><c:out value="${error}"/></p></c:if>
             <c:url var="appointmentsUrl" value="${routeBase}"/>
-            <c:url var="patientSearchUrl" value="${routeBase}/search-patients"/>
+            <c:choose>
+                <c:when test="${managerMode}">
+                    <c:url var="patientSearchUrl" value="/admin/appointments/search-patients"/>
+                </c:when>
+                <c:otherwise>
+                    <c:url var="patientSearchUrl" value="/doctor/patients/search"/>
+                </c:otherwise>
+            </c:choose>
             <c:url var="doctorSearchUrl" value="${routeBase}/search-doctors"/>
             <form method="post" action="<c:out value="${appointmentsUrl}"/>">
                 <input type="hidden" name="action" value="create">
                 <label for="patientSearch">Search patient by name or phone</label>
-                <input id="patientSearch" type="search" autocomplete="off"
+                <input id="patientSearch" type="search" autocomplete="off" maxlength="100"
                        data-search-url="<c:out value="${patientSearchUrl}"/>"
                        aria-describedby="patientSearchStatus">
                 <p id="patientSearchStatus" role="status">Search to see matching patients.</p>
@@ -30,7 +37,7 @@
                 </select>
                 <c:if test="${managerMode}">
                     <label for="doctorSearch">Search doctor by name or phone</label>
-                    <input id="doctorSearch" type="search" autocomplete="off"
+                    <input id="doctorSearch" type="search" autocomplete="off" maxlength="100"
                            data-search-url="<c:out value="${doctorSearchUrl}"/>"
                            aria-describedby="doctorSearchStatus">
                     <p id="doctorSearchStatus" role="status">Search to see active doctors.</p>
