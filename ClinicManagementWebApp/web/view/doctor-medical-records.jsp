@@ -44,7 +44,12 @@
                                         <c:url var="detailUrl" value="${routeBase}">
                                             <c:param name="id" value="${record.medicalRecordID}"/>
                                         </c:url>
-                                        <a href="<c:out value="${detailUrl}"/>">Detail / edit</a>
+                                        <a href="<c:out value="${detailUrl}"/>">
+                                            <c:choose>
+                                                <c:when test="${record.status eq 'COMPLETED'}">View completed record</c:when>
+                                                <c:otherwise>Detail / edit</c:otherwise>
+                                            </c:choose>
+                                        </a>
                                     </td>
                                 </tr>
                             </c:forEach>

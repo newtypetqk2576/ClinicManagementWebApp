@@ -5,16 +5,19 @@
     <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1">
-        <title><c:choose><c:when test="${createMode}">Create medical record</c:when><c:otherwise>Edit medical record</c:otherwise></c:choose></title>
+        <title><c:choose><c:when test="${createMode}">Create medical record</c:when><c:when test="${not recordEditable}">Completed medical record (view only)</c:when><c:otherwise>Edit medical record</c:otherwise></c:choose></title>
         <link rel="stylesheet" href="${pageContext.request.contextPath}/css/common-layout.css">
     </head>
     <body>
         <jsp:include page="/common/header.jsp"/>
         <jsp:include page="/common/navigation_bar.jsp"/>
         <main>
-            <h1><c:choose><c:when test="${createMode}">Create medical record</c:when><c:otherwise>Medical record detail / edit</c:otherwise></c:choose></h1>
+            <h1><c:choose><c:when test="${createMode}">Create medical record</c:when><c:when test="${not recordEditable}">Completed medical record (view only)</c:when><c:otherwise>Medical record detail / edit</c:otherwise></c:choose></h1>
             <c:if test="${not empty error}"><p role="alert"><c:out value="${error}"/></p></c:if>
             <c:if test="${not empty message}"><p role="status"><c:out value="${message}"/></p></c:if>
+            <c:if test="${not createMode and not recordEditable}">
+                <p role="status">This medical record is completed and read-only.</p>
+            </c:if>
             <c:url var="recordsUrl" value="${routeBase}"/>
             <c:url var="formAction" value="${routeBase}"/>
             <c:url var="confirmPaymentUrl" value="${routeBase}/confirm-payment"/>
@@ -59,7 +62,7 @@
                         </c:when>
                         <c:when test="${createMode}">
                             <label for="patientSearch">Search patient by name or phone</label>
-                            <p>The current database schema allows only one record without an appointment; link additional records to an appointment.</p>
+                            <p>An appointment is optional. Select a patient for an unlinked medical record.</p>
                             <input id="patientSearch" type="search" autocomplete="off"
                                    data-search-url="<c:out value="${patientSearchUrl}"/>">
                             <p id="patientSearchStatus" role="status">Search to see matching patients.</p>
@@ -121,17 +124,26 @@
                 <section aria-labelledby="record-heading">
                     <h2 id="record-heading">Clinical record</h2>
                     <label for="symptoms">Symptoms</label>
-                    <textarea id="symptoms" name="symptoms" maxlength="1000"><c:out value="${record.symptoms}"/></textarea>
+                    <textarea id="symptoms" name="symptoms" maxlength="1000"
+                              <c:if test="${not recordEditable}">readonly</c:if>><c:out value="${record.symptoms}"/></textarea>
                     <label for="diagnosis">Diagnosis</label>
-                    <textarea id="diagnosis" name="diagnosis" maxlength="1000"><c:out value="${record.diagnosis}"/></textarea>
+                    <textarea id="diagnosis" name="diagnosis" maxlength="1000"
+                              <c:if test="${not recordEditable}">readonly</c:if>><c:out value="${record.diagnosis}"/></textarea>
                     <label for="treatmentNotes">Treatment notes</label>
-                    <textarea id="treatmentNotes" name="treatmentNotes" maxlength="2000"><c:out value="${record.treatmentNotes}"/></textarea>
-                    <label for="status">Status</label>
-                    <select id="status" name="status" required>
-                        <option value="IN_PROGRESS" <c:if test="${record.status eq 'IN_PROGRESS'}">selected</c:if>>In progress</option>
-                        <option value="COMPLETED" <c:if test="${record.status eq 'COMPLETED'}">selected</c:if>>Completed</option>
-                        <option value="CANCELLED" <c:if test="${record.status eq 'CANCELLED'}">selected</c:if>>Cancelled</option>
-                    </select>
+                    <textarea id="treatmentNotes" name="treatmentNotes" maxlength="2000"
+                              <c:if test="${not recordEditable}">readonly</c:if>><c:out value="${record.treatmentNotes}"/></textarea>
+                    <c:choose>
+                        <c:when test="${recordEditable}">
+                            <label for="status">Status</label>
+                            <select id="status" name="status" required>
+                                <option value="IN_PROGRESS" <c:if test="${record.status eq 'IN_PROGRESS'}">selected</c:if>>In progress</option>
+                                <option value="CANCELLED" <c:if test="${record.status eq 'CANCELLED'}">selected</c:if>>Cancelled</option>
+                            </select>
+                        </c:when>
+                        <c:otherwise>
+                            <p><strong>Status:</strong> <c:out value="${record.status}"/></p>
+                        </c:otherwise>
+                    </c:choose>
                 </section>
 
                 <section aria-labelledby="services-heading">
@@ -213,7 +225,14 @@
                         </c:forEach>
                     </div>
                     <c:if test="${not itemsEditable}">
-                        <p>Items cannot be changed after an invoice exists or a prescription has been issued or cancelled.</p>
+                        <c:choose>
+                            <c:when test="${not recordEditable}">
+                                <p>This completed medical record is read-only.</p>
+                            </c:when>
+                            <c:otherwise>
+                                <p>Items cannot be changed after an invoice exists or a prescription has been issued or cancelled.</p>
+                            </c:otherwise>
+                        </c:choose>
                     </c:if>
                 </section>
 
@@ -232,22 +251,29 @@
                                 <dt>Payment status</dt><dd><c:out value="${record.invoice.paymentStatus}"/></dd>
                                 <dt>Notes</dt><dd><c:out value="${record.invoice.notes}"/></dd>
                             </dl>
-                            <c:if test="${record.invoice.paymentStatus eq 'UNPAID'}">
+                            <c:if test="${recordEditable and record.invoice.paymentStatus eq 'UNPAID'}">
                                 <button type="submit" formaction="<c:out value="${confirmPaymentUrl}"/>"
                                         formnovalidate>Confirm payment</button>
                             </c:if>
                         </c:when>
                         <c:otherwise>
-                            <p>No invoice exists for this record. If selected, the server calculates the total from saved service and medicine prices; payment status starts as UNPAID.</p>
-                            <label>
-                                <input type="checkbox" name="createInvoice" value="true">
-                                Create invoice
-                            </label>
+                            <c:if test="${recordEditable}">
+                                <p>No invoice exists for this record. If selected, the server calculates the total from saved service and medicine prices; payment status starts as UNPAID.</p>
+                                <label>
+                                    <input type="checkbox" name="createInvoice" value="true">
+                                    Create invoice
+                                </label>
+                            </c:if>
+                            <c:if test="${not recordEditable}">
+                                <p>No invoice exists; this completed record is read-only.</p>
+                            </c:if>
                         </c:otherwise>
                     </c:choose>
                 </section>
 
-                <button type="submit"><c:choose><c:when test="${createMode}">Create medical record</c:when><c:otherwise>Save changes</c:otherwise></c:choose></button>
+                <c:if test="${createMode or recordEditable}">
+                    <button type="submit"><c:choose><c:when test="${createMode}">Create medical record</c:when><c:otherwise>Save changes</c:otherwise></c:choose></button>
+                </c:if>
             </form>
             <p><a href="<c:out value="${recordsUrl}"/>">Back to medical records</a></p>
         </main>

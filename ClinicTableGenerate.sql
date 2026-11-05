@@ -146,6 +146,15 @@ CREATE TABLE MedicalRecords (
         ))
 );
 
+
+ALTER TABLE MedicalRecords
+DROP CONSTRAINT UQ_MedicalRecords_Appointment;
+
+
+CREATE UNIQUE NONCLUSTERED INDEX UX_MedicalRecords_Appointment
+ON MedicalRecords (AppointmentID)
+WHERE AppointmentID IS NOT NULL;
+
 -- 2. MEDICAL RECORD SERVICES / Dịch vụ trong từng lần khám
 CREATE TABLE MedicalRecordServices (
     MedicalRecordServiceID INT IDENTITY(1,1)

@@ -258,44 +258,85 @@ public class MedicalRecordDAO extends DBContext {
     private InvoicePaymentResult confirmInvoicePayment(int medicalRecordID, Integer doctorID)
             throws SQLException {
         String scope = doctorID == null ? "" : "AND mr.DoctorID = ?";
-        String updateSql = "UPDATE i SET PaymentStatus = 'PAID' FROM Invoices i "
+        String invoiceSql = "UPDATE i SET PaymentStatus = 'PAID' FROM Invoices i "
+                + "JOIN MedicalRecords mr ON mr.MedicalRecordID = i.MedicalRecordID "
                 + "WHERE i.MedicalRecordID = ? AND i.PaymentStatus = 'UNPAID' "
-                + "AND EXISTS (SELECT 1 FROM MedicalRecords mr "
-                + "WHERE mr.MedicalRecordID = i.MedicalRecordID " + scope + ")";
+                + "AND mr.Status NOT IN ('COMPLETED', 'CANCELLED') " + scope;
+        String recordSql = "UPDATE mr SET Status = 'COMPLETED' FROM MedicalRecords mr "
+                + "JOIN Invoices i ON i.MedicalRecordID = mr.MedicalRecordID "
+                + "WHERE mr.MedicalRecordID = ? AND i.PaymentStatus = 'PAID' "
+                + "AND mr.Status NOT IN ('COMPLETED', 'CANCELLED') " + scope;
         try (Connection conn = requireConnection()) {
-            int updated;
-            try (PreparedStatement statement = conn.prepareStatement(updateSql)) {
-                statement.setInt(1, medicalRecordID);
-                if (doctorID != null) {
-                    statement.setInt(2, doctorID);
-                }
-                updated = statement.executeUpdate();
-            }
-            if (updated == 1) {
-                return InvoicePaymentResult.CONFIRMED;
-            }
-
-            String statusSql = "SELECT i.PaymentStatus FROM Invoices i "
-                    + "JOIN MedicalRecords mr ON mr.MedicalRecordID = i.MedicalRecordID "
-                    + "WHERE mr.MedicalRecordID = ? " + scope;
-            try (PreparedStatement statusStatement = conn.prepareStatement(statusSql)) {
-                statusStatement.setInt(1, medicalRecordID);
-                if (doctorID != null) {
-                    statusStatement.setInt(2, doctorID);
-                }
-                try (ResultSet resultSet = statusStatement.executeQuery()) {
-                    if (!resultSet.next()) {
-                        return InvoicePaymentResult.NOT_FOUND;
+            boolean originalAutoCommit = conn.getAutoCommit();
+            conn.setAutoCommit(false);
+            try {
+                int updated;
+                try (PreparedStatement statement = conn.prepareStatement(invoiceSql)) {
+                    statement.setInt(1, medicalRecordID);
+                    if (doctorID != null) {
+                        statement.setInt(2, doctorID);
                     }
-                    return "PAID".equals(resultSet.getString("PaymentStatus"))
-                            ? InvoicePaymentResult.ALREADY_PAID : InvoicePaymentResult.NOT_PAYABLE;
+                    updated = statement.executeUpdate();
                 }
+                if (updated == 1) {
+                    try (PreparedStatement statement = conn.prepareStatement(recordSql)) {
+                        statement.setInt(1, medicalRecordID);
+                        if (doctorID != null) {
+                            statement.setInt(2, doctorID);
+                        }
+                        if (statement.executeUpdate() != 1) {
+                            throw new SQLException("The medical record could not be completed after payment.");
+                        }
+                    }
+                    conn.commit();
+                    return InvoicePaymentResult.CONFIRMED;
+                }
+
+                String statusSql = "SELECT i.PaymentStatus, mr.Status FROM Invoices i "
+                        + "JOIN MedicalRecords mr ON mr.MedicalRecordID = i.MedicalRecordID "
+                        + "WHERE mr.MedicalRecordID = ? " + scope;
+                InvoicePaymentResult result;
+                try (PreparedStatement statusStatement = conn.prepareStatement(statusSql)) {
+                    statusStatement.setInt(1, medicalRecordID);
+                    if (doctorID != null) {
+                        statusStatement.setInt(2, doctorID);
+                    }
+                    try (ResultSet resultSet = statusStatement.executeQuery()) {
+                        if (!resultSet.next()) {
+                            result = InvoicePaymentResult.NOT_FOUND;
+                        } else if ("PAID".equals(resultSet.getString("PaymentStatus"))) {
+                            result = InvoicePaymentResult.ALREADY_PAID;
+                        } else {
+                            result = InvoicePaymentResult.NOT_PAYABLE;
+                        }
+                    }
+                }
+
+                if (result == InvoicePaymentResult.ALREADY_PAID) {
+                    try (PreparedStatement statement = conn.prepareStatement(recordSql)) {
+                        statement.setInt(1, medicalRecordID);
+                        if (doctorID != null) {
+                            statement.setInt(2, doctorID);
+                        }
+                        statement.executeUpdate();
+                    }
+                }
+                conn.commit();
+                return result;
+            } catch (SQLException | RuntimeException ex) {
+                conn.rollback();
+                throw ex;
+            } finally {
+                conn.setAutoCommit(originalAutoCommit);
             }
         }
     }
 
     private boolean save(MedicalRecord record, boolean createInvoice, boolean replaceItems, Integer doctorScope)
             throws SQLException {
+        if (!"IN_PROGRESS".equals(record.getStatus()) && !"CANCELLED".equals(record.getStatus())) {
+            throw new IllegalArgumentException("Select a valid medical record status.");
+        }
         Connection conn = requireConnection();
         boolean originalAutoCommit = conn.getAutoCommit();
         conn.setAutoCommit(false);
@@ -305,7 +346,7 @@ public class MedicalRecordDAO extends DBContext {
                 validateNewRecordRelations(conn, record, doctorScope);
                 String sql = "INSERT INTO MedicalRecords "
                         + "(AppointmentID, PatientID, DoctorID, Symptoms, Diagnosis, TreatmentNotes, Status) "
-                        + "OUTPUT INSERTED.MedicalRecordID VALUES (?, ?, ?, ?, ?, ?, ?)";
+                        + "OUTPUT INSERTED.MedicalRecordID VALUES (?, ?, ?, ?, ?, ?, 'IN_PROGRESS')";
                 try (PreparedStatement statement = conn.prepareStatement(sql)) {
                     setNullableInt(statement, 1, record.getAppointmentID());
                     statement.setInt(2, record.getPatientID());
@@ -313,7 +354,6 @@ public class MedicalRecordDAO extends DBContext {
                     setNullableNString(statement, 4, record.getSymptoms());
                     setNullableNString(statement, 5, record.getDiagnosis());
                     setNullableNString(statement, 6, record.getTreatmentNotes());
-                    statement.setString(7, record.getStatus());
                     try (ResultSet resultSet = statement.executeQuery()) {
                         if (!resultSet.next()) {
                             throw new SQLException("Medical record insert did not return an ID.");
@@ -325,7 +365,7 @@ public class MedicalRecordDAO extends DBContext {
                 recordID = record.getMedicalRecordID();
                 String sql = "UPDATE MedicalRecords SET Symptoms = ?, Diagnosis = ?, "
                         + "TreatmentNotes = ?, Status = ? "
-                        + "WHERE MedicalRecordID = ? "
+                        + "WHERE MedicalRecordID = ? AND Status <> 'COMPLETED' "
                         + (doctorScope == null ? "" : "AND DoctorID = ?");
                 try (PreparedStatement statement = conn.prepareStatement(sql)) {
                     setNullableNString(statement, 1, record.getSymptoms());
@@ -337,10 +377,14 @@ public class MedicalRecordDAO extends DBContext {
                         statement.setInt(6, doctorScope);
                     }
                     if (statement.executeUpdate() != 1) {
+                        if (isCompletedRecord(conn, recordID, doctorScope)) {
+                            throw new IllegalStateException("Completed medical records are read-only.");
+                        }
                         conn.rollback();
                         return false;
                     }
                 }
+
             }
 
             boolean hasInvoice = invoiceExists(conn, recordID);
@@ -369,6 +413,21 @@ public class MedicalRecordDAO extends DBContext {
         }
     }
 
+    private boolean isCompletedRecord(Connection conn, int recordID, Integer doctorScope)
+            throws SQLException {
+        String sql = "SELECT 1 FROM MedicalRecords WHERE MedicalRecordID = ? "
+                + "AND Status = 'COMPLETED' " + (doctorScope == null ? "" : "AND DoctorID = ?");
+        try (PreparedStatement statement = conn.prepareStatement(sql)) {
+            statement.setInt(1, recordID);
+            if (doctorScope != null) {
+                statement.setInt(2, doctorScope);
+            }
+            try (ResultSet resultSet = statement.executeQuery()) {
+                return resultSet.next();
+            }
+        }
+    }
+
     private void validateNewRecordRelations(Connection conn, MedicalRecord record, Integer doctorScope)
             throws SQLException {
         requirePositiveID(record.getPatientID(), "PatientID");
@@ -393,18 +452,7 @@ public class MedicalRecordDAO extends DBContext {
                 }
             }
         }
-        if (record.getAppointmentID() == null) {
-            try (PreparedStatement statement = conn.prepareStatement(
-                    "SELECT 1 FROM MedicalRecords WHERE AppointmentID IS NULL")) {
-                try (ResultSet resultSet = statement.executeQuery()) {
-                    if (resultSet.next()) {
-                        throw new IllegalArgumentException(
-                                "The current database schema only allows one medical record without an appointment. "
-                                + "Link this record to an appointment.");
-                    }
-                }
-            }
-        } else {
+        if (record.getAppointmentID() != null) {
             try (PreparedStatement statement = conn.prepareStatement(
                     "SELECT 1 FROM Appointments a "
                     + "WHERE a.AppointmentID = ? AND a.DoctorID = ? AND a.PatientID = ? "

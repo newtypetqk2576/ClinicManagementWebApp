@@ -51,7 +51,7 @@ public class DoctorMedicalRecordsServlet extends HttpServlet {
     private static final String LIST_PAGE = "/view/doctor-medical-records.jsp";
     private static final String FORM_PAGE = "/view/doctor-medical-record-form.jsp";
     private static final Set<String> RECORD_STATUSES =
-            Set.of("IN_PROGRESS", "COMPLETED", "CANCELLED");
+            Set.of("IN_PROGRESS", "CANCELLED");
 
     @Override
     protected void doGet(HttpServletRequest request, HttpServletResponse response)
@@ -187,10 +187,30 @@ public class DoctorMedicalRecordsServlet extends HttpServlet {
             return;
         }
 
-        MedicalRecordDAO dao = new MedicalRecordDAO(getServletContext());
+        MedicalRecordDAO detailsDao = new MedicalRecordDAO(getServletContext());
+        MedicalRecord record = manager
+                ? detailsDao.getDetailsForManager(recordID)
+                : detailsDao.getDetailsForDoctor(recordID, doctorID);
+        if (record == null) {
+            response.sendError(HttpServletResponse.SC_NOT_FOUND);
+            return;
+        }
+        if ("COMPLETED".equals(record.getStatus())) {
+            if (record.getInvoice() != null && "PAID".equals(record.getInvoice().getPaymentStatus())) {
+                request.getSession(false).setAttribute(manager
+                        ? "managerMedicalRecordMessage" : "doctorMedicalRecordMessage",
+                        "This invoice is already marked as paid.");
+                response.sendRedirect(request.getContextPath()
+                        + (manager ? "/admin/medical-records?id=" : "/doctor/medical-records?id=") + recordID);
+                return;
+            }
+            response.sendError(HttpServletResponse.SC_CONFLICT, "Completed medical records are read-only.");
+            return;
+        }
+        MedicalRecordDAO paymentDao = new MedicalRecordDAO(getServletContext());
         InvoicePaymentResult result = manager
-                ? dao.confirmInvoicePaymentForManager(recordID)
-                : dao.confirmInvoicePaymentForDoctor(recordID, doctorID);
+                ? paymentDao.confirmInvoicePaymentForManager(recordID)
+                : paymentDao.confirmInvoicePaymentForDoctor(recordID, doctorID);
         if (result == InvoicePaymentResult.NOT_FOUND) {
             response.sendError(HttpServletResponse.SC_NOT_FOUND);
             return;
@@ -310,6 +330,10 @@ public class DoctorMedicalRecordsServlet extends HttpServlet {
             response.sendError(HttpServletResponse.SC_NOT_FOUND);
             return;
         }
+        if ("COMPLETED".equals(record.getStatus())) {
+            response.sendError(HttpServletResponse.SC_CONFLICT, "Completed medical records are read-only.");
+            return;
+        }
         readClinicalFields(request, record, false);
         String error = validateClinicalFields(record, request);
         boolean itemsEditable = itemsEditable(record);
@@ -337,6 +361,14 @@ public class DoctorMedicalRecordsServlet extends HttpServlet {
             response.sendRedirect(request.getContextPath()
                     + (manager ? "/admin/medical-records?id=" : "/doctor/medical-records?id=") + recordID);
         } catch (IllegalArgumentException | IllegalStateException ex) {
+            MedicalRecord latest = manager
+                    ? new MedicalRecordDAO(getServletContext()).getDetailsForManager(recordID)
+                    : new MedicalRecordDAO(getServletContext()).getDetailsForDoctor(recordID, doctor.getDoctorID());
+            if (latest != null && "COMPLETED".equals(latest.getStatus())) {
+                response.sendError(HttpServletResponse.SC_CONFLICT,
+                        "Completed medical records are read-only.");
+                return;
+            }
             renderEditForm(request, response, doctor, record, ex.getMessage(), manager);
         }
     }
@@ -345,8 +377,9 @@ public class DoctorMedicalRecordsServlet extends HttpServlet {
         record.setSymptoms(blankToNull(request.getParameter("symptoms")));
         record.setDiagnosis(blankToNull(request.getParameter("diagnosis")));
         record.setTreatmentNotes(blankToNull(request.getParameter("treatmentNotes")));
-        String status = value(request.getParameter("status")).trim();
-        record.setStatus(status.isEmpty() && creating ? "IN_PROGRESS" : status);
+        if (creating) {
+            record.setStatus("IN_PROGRESS");
+        }
     }
 
     private String validateClinicalFields(MedicalRecord record, HttpServletRequest request) {
@@ -534,6 +567,7 @@ public class DoctorMedicalRecordsServlet extends HttpServlet {
         request.setAttribute("selectedDoctor", selectedDoctor);
         request.setAttribute("managerMode", manager);
         request.setAttribute("routeBase", manager ? "/admin/medical-records" : "/doctor/medical-records");
+        request.setAttribute("recordEditable", true);
         request.setAttribute("itemsEditable", true);
         request.setAttribute("error", error);
         request.setAttribute("patientIDValue", appointment == null
@@ -554,7 +588,9 @@ public class DoctorMedicalRecordsServlet extends HttpServlet {
         request.setAttribute("doctor", doctor);
         request.setAttribute("managerMode", manager);
         request.setAttribute("routeBase", manager ? "/admin/medical-records" : "/doctor/medical-records");
-        request.setAttribute("itemsEditable", itemsEditable(record));
+        boolean recordEditable = !"COMPLETED".equals(record.getStatus());
+        request.setAttribute("recordEditable", recordEditable);
+        request.setAttribute("itemsEditable", recordEditable && itemsEditable(record));
         request.setAttribute("error", error);
         request.getRequestDispatcher(FORM_PAGE).forward(request, response);
     }
