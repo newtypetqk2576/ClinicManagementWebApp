@@ -1,22 +1,23 @@
 <%@page contentType="text/html" pageEncoding="UTF-8"%>
 <%@taglib prefix="c" uri="http://java.sun.com/jsp/jstl/core"%>
+<%@taglib prefix="list" tagdir="/WEB-INF/tags"%>
 <!DOCTYPE html>
-<html>
+<html lang="vi">
     <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1">
-        <title><c:choose><c:when test="${createMode}">Create medical record</c:when><c:when test="${not recordEditable}">Completed medical record (view only)</c:when><c:otherwise>Edit medical record</c:otherwise></c:choose></title>
+        <title><c:choose><c:when test="${createMode}">Tạo hồ sơ khám</c:when><c:when test="${not recordEditable}">Hồ sơ khám đã hoàn thành</c:when><c:otherwise>Chỉnh sửa hồ sơ khám</c:otherwise></c:choose></title>
         <link rel="stylesheet" href="${pageContext.request.contextPath}/css/common-layout.css">
     </head>
     <body>
         <jsp:include page="/common/header.jsp"/>
         <jsp:include page="/common/navigation_bar.jsp"/>
         <main>
-            <h1><c:choose><c:when test="${createMode}">Create medical record</c:when><c:when test="${not recordEditable}">Completed medical record (view only)</c:when><c:otherwise>Medical record detail / edit</c:otherwise></c:choose></h1>
+            <h1><c:choose><c:when test="${createMode}">Tạo hồ sơ khám</c:when><c:when test="${not recordEditable}">Hồ sơ khám đã hoàn thành</c:when><c:otherwise>Chi tiết hồ sơ khám</c:otherwise></c:choose></h1>
             <c:if test="${not empty error}"><p role="alert"><c:out value="${error}"/></p></c:if>
             <c:if test="${not empty message}"><p role="status"><c:out value="${message}"/></p></c:if>
             <c:if test="${not createMode and not recordEditable}">
-                <p role="status">This medical record is completed and read-only.</p>
+                <p role="status">Hồ sơ khám đã hoàn thành và chỉ có thể xem.</p>
             </c:if>
             <c:url var="recordsUrl" value="${routeBase}"/>
             <c:url var="formAction" value="${routeBase}"/>
@@ -28,9 +29,9 @@
 
             <c:if test="${not createMode}">
                 <dl>
-                    <dt>Record ID</dt><dd><c:out value="${record.medicalRecordID}"/></dd>
-                    <dt>Visit date</dt><dd><c:out value="${record.visitDate}"/></dd>
-                    <dt>Created at</dt><dd><c:out value="${record.createdAt}"/></dd>
+                    <dt>Mã hồ sơ khám</dt><dd><c:out value="${record.medicalRecordID}"/></dd>
+                    <dt>Ngày giờ khám</dt><dd><list:dateTime value="${record.visitDate}"/></dd>
+                    <dt>Ngày tạo</dt><dd><list:dateTime value="${record.createdAt}"/></dd>
                 </dl>
             </c:if>
 
@@ -50,25 +51,25 @@
                 </c:choose>
 
                 <section aria-labelledby="people-heading">
-                    <h2 id="people-heading">Patient and doctor</h2>
+                    <h2 id="people-heading">Bệnh nhân và bác sĩ</h2>
                     <c:choose>
                         <c:when test="${not empty appointment}">
                             <dl>
-                                <dt>Patient</dt><dd><c:out value="${appointment.patient.fullName}"/></dd>
-                                <dt>Patient phone</dt><dd><c:out value="${appointment.patient.phone}"/></dd>
-                                <dt>Doctor</dt><dd><c:out value="${appointment.doctorName}"/></dd>
-                                <dt>Appointment</dt><dd><c:out value="${appointment.appointmentDate}"/> — <c:out value="${appointment.reason}"/></dd>
+                                <dt>Bệnh nhân</dt><dd><c:out value="${appointment.patient.fullName}"/></dd>
+                                <dt>Số điện thoại bệnh nhân</dt><dd><c:out value="${appointment.patient.phone}"/></dd>
+                                <dt>Bác sĩ</dt><dd><c:out value="${appointment.doctorName}"/></dd>
+                                <dt>Lịch hẹn</dt><dd><list:dateTime value="${appointment.appointmentDate}"/> — <c:out value="${appointment.reason}"/></dd>
                             </dl>
                         </c:when>
                         <c:when test="${createMode}">
-                            <label for="patientSearch">Search patient by name or phone</label>
-                            <p>An appointment is optional. Select a patient for an unlinked medical record.</p>
+                            <label for="patientSearch">Tìm bệnh nhân theo tên hoặc số điện thoại</label>
+                            <p>Có thể tạo hồ sơ khám trực tiếp bằng cách chọn bệnh nhân.</p>
                             <input id="patientSearch" type="search" autocomplete="off"
                                    data-search-url="<c:out value="${patientSearchUrl}"/>">
-                            <p id="patientSearchStatus" role="status">Search to see matching patients.</p>
-                            <label for="patientResults">Select patient</label>
+                            <p id="patientSearchStatus" role="status">Nhập từ khóa để tìm bệnh nhân.</p>
+                            <label for="patientResults">Chọn bệnh nhân</label>
                             <select id="patientResults" size="1">
-                                <option value="">Search above, then select a patient</option>
+                                <option value="">Tìm và chọn bệnh nhân</option>
                                 <c:if test="${not empty patientIDValue}">
                                     <option value="<c:out value="${patientIDValue}"/>" selected>
                                         <c:out value="${patientNameValue}"/> — <c:out value="${patientPhoneValue}"/>
@@ -84,21 +85,21 @@
                         </c:when>
                         <c:otherwise>
                             <dl>
-                                <dt>Patient</dt><dd><c:out value="${record.patientName}"/></dd>
-                                <dt>Doctor</dt><dd><c:out value="${record.doctorName}"/></dd>
+                                <dt>Bệnh nhân</dt><dd><c:out value="${record.patientName}"/></dd>
+                                <dt>Bác sĩ</dt><dd><c:out value="${record.doctorName}"/></dd>
                             </dl>
                         </c:otherwise>
                     </c:choose>
                     <c:if test="${createMode}">
                         <c:choose>
                             <c:when test="${managerMode and empty appointment}">
-                                <label for="doctorSearch">Search doctor by name or phone</label>
+                                <label for="doctorSearch">Tìm bác sĩ theo tên hoặc số điện thoại</label>
                                 <input id="doctorSearch" type="search" autocomplete="off"
                                        data-search-url="<c:out value="${doctorSearchUrl}"/>">
-                                <p id="doctorSearchStatus" role="status">Search to see active doctors.</p>
-                                <label for="doctorResults">Select doctor</label>
+                                <p id="doctorSearchStatus" role="status">Nhập từ khóa để tìm bác sĩ đang hoạt động.</p>
+                                <label for="doctorResults">Chọn bác sĩ</label>
                                 <select id="doctorResults" size="1">
-                                    <option value="">Search above, then select a doctor</option>
+                                    <option value="">Tìm và chọn bác sĩ</option>
                                     <c:if test="${not empty doctorIDValue}">
                                         <option value="<c:out value="${doctorIDValue}"/>" selected>
                                             <c:out value="${doctorNameValue}"/> — <c:out value="${doctorPhoneValue}"/>
@@ -122,40 +123,40 @@
                 </section>
 
                 <section aria-labelledby="record-heading">
-                    <h2 id="record-heading">Clinical record</h2>
-                    <label for="symptoms">Symptoms</label>
+                    <h2 id="record-heading">Thông tin khám</h2>
+                    <label for="symptoms">Triệu chứng</label>
                     <textarea id="symptoms" name="symptoms" maxlength="1000"
                               <c:if test="${not recordEditable}">readonly</c:if>><c:out value="${record.symptoms}"/></textarea>
-                    <label for="diagnosis">Diagnosis</label>
+                    <label for="diagnosis">Chẩn đoán</label>
                     <textarea id="diagnosis" name="diagnosis" maxlength="1000"
                               <c:if test="${not recordEditable}">readonly</c:if>><c:out value="${record.diagnosis}"/></textarea>
-                    <label for="treatmentNotes">Treatment notes</label>
+                    <label for="treatmentNotes">Ghi chú điều trị</label>
                     <textarea id="treatmentNotes" name="treatmentNotes" maxlength="2000"
                               <c:if test="${not recordEditable}">readonly</c:if>><c:out value="${record.treatmentNotes}"/></textarea>
                     <c:choose>
                         <c:when test="${recordEditable}">
-                            <label for="status">Status</label>
+                            <label for="status">Trạng thái</label>
                             <select id="status" name="status" required>
-                                <option value="IN_PROGRESS" <c:if test="${record.status eq 'IN_PROGRESS'}">selected</c:if>>In progress</option>
-                                <option value="CANCELLED" <c:if test="${record.status eq 'CANCELLED'}">selected</c:if>>Cancelled</option>
+                                <option value="IN_PROGRESS" <c:if test="${record.status eq 'IN_PROGRESS'}">selected</c:if>>Đang khám</option>
+                                <option value="CANCELLED" <c:if test="${record.status eq 'CANCELLED'}">selected</c:if>>Đã hủy</option>
                             </select>
                         </c:when>
                         <c:otherwise>
-                            <p><strong>Status:</strong> <c:out value="${record.status}"/></p>
+                            <p><strong>Trạng thái</strong> <list:status value="${record.status}"/></p>
                         </c:otherwise>
                     </c:choose>
                 </section>
 
                 <section aria-labelledby="services-heading">
-                    <h2 id="services-heading">Services</h2>
+                    <h2 id="services-heading">Dịch vụ khám</h2>
                     <c:if test="${itemsEditable}">
-                        <label for="serviceSearch">Search services by name</label>
+                        <label for="serviceSearch">Tìm theo tên dịch vụ</label>
                         <input id="serviceSearch" type="search" autocomplete="off"
                                data-search-url="<c:out value="${serviceSearchUrl}"/>">
-                        <p id="serviceSearchStatus" role="status">Search to see active services.</p>
-                        <label for="serviceResults">Select service</label>
-                        <select id="serviceResults" size="1"><option value="">Search above, then select a service</option></select>
-                        <button id="addService" type="button">Add service</button>
+                        <p id="serviceSearchStatus" role="status">Nhập từ khóa để tìm dịch vụ đang hoạt động.</p>
+                        <label for="serviceResults">Chọn dịch vụ khám</label>
+                        <select id="serviceResults" size="1"><option value="">Tìm và chọn dịch vụ khám</option></select>
+                        <button id="addService" type="button">Thêm dịch vụ khám</button>
                     </c:if>
                     <div id="serviceLines">
                         <c:forEach var="service" items="${record.services}">
@@ -170,24 +171,24 @@
                                     <input type="text" name="serviceNotes" maxlength="500" value="<c:out value="${service.notes}"/>"
                                            <c:if test="${not itemsEditable}">readonly</c:if>>
                                 </label>
-                                <c:if test="${itemsEditable}"><button type="button" class="remove-line">Remove service</button></c:if>
+                                <c:if test="${itemsEditable}"><button type="button" class="remove-line">Bỏ dịch vụ</button></c:if>
                             </fieldset>
                         </c:forEach>
                     </div>
                 </section>
 
                 <section aria-labelledby="medicine-heading">
-                    <h2 id="medicine-heading">Prescription and medicines</h2>
+                    <h2 id="medicine-heading">Đơn thuốc và thuốc</h2>
                     <c:if test="${itemsEditable}">
-                        <label for="medicineSearch">Search medicines by name</label>
+                        <label for="medicineSearch">Tìm theo tên thuốc</label>
                         <input id="medicineSearch" type="search" autocomplete="off"
                                data-search-url="<c:out value="${medicineSearchUrl}"/>">
-                        <p id="medicineSearchStatus" role="status">Search to see active medicines.</p>
-                        <label for="medicineResults">Select medicine</label>
-                        <select id="medicineResults" size="1"><option value="">Search above, then select a medicine</option></select>
-                        <button id="addMedicine" type="button">Add medicine</button>
+                        <p id="medicineSearchStatus" role="status">Nhập từ khóa để tìm thuốc đang hoạt động.</p>
+                        <label for="medicineResults">Chọn thuốc</label>
+                        <select id="medicineResults" size="1"><option value="">Tìm và chọn thuốc</option></select>
+                        <button id="addMedicine" type="button">Thêm thuốc</button>
                     </c:if>
-                    <label for="prescriptionNotes">Prescription notes</label>
+                    <label for="prescriptionNotes">Ghi chú đơn thuốc</label>
                     <textarea id="prescriptionNotes" name="prescriptionNotes" maxlength="1000"
                               <c:if test="${not itemsEditable}">readonly</c:if>><c:if test="${not empty record.prescriptions}"><c:out value="${record.prescriptions[0].notes}"/></c:if></textarea>
                     <div id="medicineLines">
@@ -219,7 +220,7 @@
                                         <input type="text" name="instructions" maxlength="500" value="<c:out value="${medicine.instructions}"/>"
                                                <c:if test="${not itemsEditable}">readonly</c:if>>
                                     </label>
-                                    <c:if test="${itemsEditable}"><button type="button" class="remove-line">Remove medicine</button></c:if>
+                                    <c:if test="${itemsEditable}"><button type="button" class="remove-line">Bỏ thuốc</button></c:if>
                                 </fieldset>
                             </c:forEach>
                         </c:forEach>
@@ -227,55 +228,55 @@
                     <c:if test="${not itemsEditable}">
                         <c:choose>
                             <c:when test="${not recordEditable}">
-                                <p>This completed medical record is read-only.</p>
+                                <p>Hồ sơ khám đã hoàn thành và chỉ có thể xem.</p>
                             </c:when>
                             <c:otherwise>
-                                <p>Items cannot be changed after an invoice exists or a prescription has been issued or cancelled.</p>
+                                <p>Danh sách dịch vụ và thuốc được khóa khi có hóa đơn hoặc khi đơn thuốc đã được phát hành hay hủy.</p>
                             </c:otherwise>
                         </c:choose>
                     </c:if>
                 </section>
 
                 <section aria-labelledby="invoice-heading">
-                    <h2 id="invoice-heading">Invoice</h2>
+                    <h2 id="invoice-heading">Hóa đơn</h2>
                     <c:choose>
                         <c:when test="${not empty record.invoice}">
                             <dl>
-                                <dt>Invoice ID</dt><dd><c:out value="${record.invoice.invoiceID}"/></dd>
-                                <dt>Date</dt><dd><c:out value="${record.invoice.invoiceDate}"/></dd>
-                                <dt>Service amount</dt><dd><c:out value="${record.invoice.serviceAmount}"/></dd>
-                                <dt>Medicine amount</dt><dd><c:out value="${record.invoice.medicineAmount}"/></dd>
-                                <dt>Discount</dt><dd><c:out value="${record.invoice.discountAmount}"/></dd>
-                                <dt>Total</dt><dd><c:out value="${record.invoice.totalAmount}"/></dd>
-                                <dt>Payment method</dt><dd><c:out value="${record.invoice.paymentMethod}"/></dd>
-                                <dt>Payment status</dt><dd><c:out value="${record.invoice.paymentStatus}"/></dd>
-                                <dt>Notes</dt><dd><c:out value="${record.invoice.notes}"/></dd>
+                                <dt>Mã hóa đơn</dt><dd><c:out value="${record.invoice.invoiceID}"/></dd>
+                                <dt>Ngày</dt><dd><list:dateTime value="${record.invoice.invoiceDate}"/></dd>
+                                <dt>Tiền dịch vụ</dt><dd><c:out value="${record.invoice.serviceAmount}"/></dd>
+                                <dt>Tiền thuốc</dt><dd><c:out value="${record.invoice.medicineAmount}"/></dd>
+                                <dt>Giảm giá</dt><dd><c:out value="${record.invoice.discountAmount}"/></dd>
+                                <dt>Tổng tiền</dt><dd><c:out value="${record.invoice.totalAmount}"/></dd>
+                                <dt>Phương thức thanh toán</dt><dd><list:status value="${record.invoice.paymentMethod}"/></dd>
+                                <dt>Trạng thái thanh toán</dt><dd><list:status value="${record.invoice.paymentStatus}"/></dd>
+                                <dt>Ghi chú</dt><dd><c:out value="${record.invoice.notes}"/></dd>
                             </dl>
                             <c:if test="${recordEditable and record.invoice.paymentStatus eq 'UNPAID'}">
                                 <button type="submit" formaction="<c:out value="${confirmPaymentUrl}"/>"
-                                        formnovalidate>Confirm payment</button>
+                                        formnovalidate>Xác nhận thanh toán</button>
                             </c:if>
                         </c:when>
                         <c:otherwise>
                             <c:if test="${recordEditable}">
-                                <p>No invoice exists for this record. If selected, the server calculates the total from saved service and medicine prices; payment status starts as UNPAID.</p>
+                                <p>Hệ thống tính tổng tiền từ giá dịch vụ và thuốc đã lưu. Hóa đơn mới có trạng thái Chưa thanh toán.</p>
                                 <label>
                                     <input type="checkbox" name="createInvoice" value="true">
                                     Create invoice
                                 </label>
                             </c:if>
                             <c:if test="${not recordEditable}">
-                                <p>No invoice exists; this completed record is read-only.</p>
+                                <p>Hồ sơ đã hoàn thành và chưa có hóa đơn.</p>
                             </c:if>
                         </c:otherwise>
                     </c:choose>
                 </section>
 
                 <c:if test="${createMode or recordEditable}">
-                    <button type="submit"><c:choose><c:when test="${createMode}">Create medical record</c:when><c:otherwise>Save changes</c:otherwise></c:choose></button>
+                    <button type="submit"><c:choose><c:when test="${createMode}">Tạo hồ sơ khám</c:when><c:otherwise>Lưu thay đổi</c:otherwise></c:choose></button>
                 </c:if>
             </form>
-            <p><a href="<c:out value="${recordsUrl}"/>">Back to medical records</a></p>
+            <p><a href="<c:out value="${recordsUrl}"/>">Về danh sách hồ sơ khám</a></p>
         </main>
         <c:if test="${createMode or itemsEditable}">
             <script>
@@ -300,10 +301,10 @@
                             patientPhone.value = "";
                             const term = patientSearch.value.trim();
                             if (!term) {
-                                status.textContent = "Search to see matching patients.";
+                                status.textContent = "Nhập từ khóa để tìm bệnh nhân.";
                                 return;
                             }
-                            status.textContent = "Searching patients...";
+                            status.textContent = "Đang tìm bệnh nhân…";
                             timer = window.setTimeout(async () => {
                                 activeRequest = new AbortController();
                                 const url = new URL(patientSearch.dataset.searchUrl, window.location.href);
@@ -334,7 +335,7 @@
                                         : "No matching patients were found.";
                                 } catch (error) {
                                     if (error.name !== "AbortError") {
-                                        status.textContent = "Patient search is unavailable. Please try again.";
+                                        status.textContent = "Chưa thể tìm bệnh nhân. Vui lòng thử lại.";
                                     }
                                 }
                             }, 250);
@@ -363,10 +364,10 @@
                             doctorID.value = "";
                             const term = doctorSearch.value.trim();
                             if (!term) {
-                                status.textContent = "Search to see active doctors.";
+                                status.textContent = "Nhập từ khóa để tìm bác sĩ đang hoạt động.";
                                 return;
                             }
-                            status.textContent = "Searching doctors...";
+                            status.textContent = "Đang tìm bác sĩ…";
                             timer = window.setTimeout(async () => {
                                 activeRequest = new AbortController();
                                 const url = new URL(doctorSearch.dataset.searchUrl, window.location.href);
@@ -395,7 +396,7 @@
                                         : "No matching active doctors were found.";
                                 } catch (error) {
                                     if (error.name !== "AbortError") {
-                                        status.textContent = "Doctor search is unavailable. Please try again.";
+                                        status.textContent = "Chưa thể tìm bác sĩ. Vui lòng thử lại.";
                                     }
                                 }
                             }, 250);
@@ -428,7 +429,7 @@
                                 status.textContent = config.empty;
                                 return;
                             }
-                            status.textContent = "Searching...";
+                            status.textContent = "Đang tìm…";
                             timer = window.setTimeout(async () => {
                                 activeRequest = new AbortController();
                                 const url = new URL(input.dataset.searchUrl, window.location.href);
@@ -520,7 +521,7 @@
                         const remove = document.createElement("button");
                         remove.type = "button";
                         remove.className = "remove-line";
-                        remove.textContent = "Remove";
+                        remove.textContent = "Bỏ mục";
                         remove.addEventListener("click", () => row.remove());
                         row.append(remove);
                         return row;
@@ -538,7 +539,7 @@
                         idName: "serviceID",
                         quantityName: "serviceQuantity",
                         prompt: "Search above, then select a service",
-                        empty: "Search to see active services.",
+                        empty: "Nhập từ khóa để tìm dịch vụ đang hoạt động.",
                         none: "No matching services were found.",
                         failure: "Service search is unavailable. Please try again.",
                         select: "Select a service first.",
@@ -556,7 +557,7 @@
                         idName: "medicineID",
                         quantityName: "medicineQuantity",
                         prompt: "Search above, then select a medicine",
-                        empty: "Search to see active medicines.",
+                        empty: "Nhập từ khóa để tìm thuốc đang hoạt động.",
                         none: "No matching medicines were found.",
                         failure: "Medicine search is unavailable. Please try again.",
                         select: "Select a medicine first.",

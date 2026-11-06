@@ -50,43 +50,43 @@ public class PatientRegistrationServlet extends HttpServlet {
             response.sendRedirect(request.getContextPath() + "/login?registered=1");
         } catch (DuplicateRegistrationException ex) {
             String message = switch (ex.getField()) {
-                case "username" -> "That username is already in use.";
-                case "phone" -> "That phone number is already registered.";
-                default -> "That username or phone number is already in use.";
+                case "username" -> "Tên đăng nhập này đã được sử dụng.";
+                case "phone" -> "Số điện thoại này đã được đăng ký.";
+                default -> "Tên đăng nhập hoặc số điện thoại đã được sử dụng.";
             };
             forwardError(request, response, message);
         } catch (SQLException ex) {
             LOGGER.log(Level.SEVERE, "Unable to register patient account.", ex);
             forwardError(request, response,
-                    "Registration is temporarily unavailable. Please try again.");
+                    "Hiện chưa thể tạo tài khoản. Vui lòng thử lại sau.");
         }
     }
 
     private String validate(String username, String password, String confirmPassword,
             String fullName, String gender, String phone, String email, String address) {
         if (username.isEmpty() || username.length() > 50) {
-            return "Username is required and must be at most 50 characters.";
+            return "Vui lòng nhập tên đăng nhập tối đa 50 ký tự.";
         }
         if (password.isEmpty() || password.length() > 255) {
-            return "Password is required and must be at most 255 characters.";
+            return "Vui lòng nhập mật khẩu tối đa 255 ký tự.";
         }
         if (!password.equals(confirmPassword)) {
-            return "The passwords do not match.";
+            return "Mật khẩu xác nhận không khớp.";
         }
         if (fullName.isEmpty() || fullName.length() > 100) {
-            return "Full name is required and must be at most 100 characters.";
+            return "Vui lòng nhập họ và tên tối đa 100 ký tự.";
         }
         if (!Patient.isValidGender(gender)) {
-            return "Select a valid gender.";
+            return "Vui lòng chọn giới tính trong danh sách.";
         }
         if (phone.isEmpty() || phone.length() > 15) {
-            return "Phone is required and must be at most 15 characters.";
+            return "Vui lòng nhập số điện thoại tối đa 15 ký tự.";
         }
         if (email != null && email.length() > 100) {
-            return "Email must be at most 100 characters.";
+            return "Email chỉ được dài tối đa 100 ký tự.";
         }
         if (address != null && address.length() > 255) {
-            return "Address must be at most 255 characters.";
+            return "Địa chỉ chỉ được dài tối đa 255 ký tự.";
         }
         return null;
     }
@@ -94,7 +94,6 @@ public class PatientRegistrationServlet extends HttpServlet {
     private void forwardError(HttpServletRequest request, HttpServletResponse response, String error)
             throws ServletException, IOException {
         request.setAttribute("genderOptions", Patient.GENDER_OPTIONS);
-        request.setAttribute("gender", value(request.getParameter("gender")));
         request.setAttribute("error", error);
         request.getRequestDispatcher("/auth/register.jsp").forward(request, response);
     }

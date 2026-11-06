@@ -101,9 +101,12 @@ public class DoctorMedicalRecordsServlet extends HttpServlet {
 
             String idValue = request.getParameter("id");
             if (idValue == null) {
-                request.setAttribute("records", manager
-                        ? new MedicalRecordDAO(getServletContext()).getAllForManager()
-                        : new MedicalRecordDAO(getServletContext()).getByDoctorID(doctorID));
+                MedicalRecordDAO recordDAO = new MedicalRecordDAO(getServletContext());
+                List<MedicalRecord> records = manager
+                        ? recordDAO.getAllForManager() : recordDAO.getByDoctorID(doctorID);
+                ListPage.byNameAndDate(request, "records", records,
+                        "Tên bệnh nhân hoặc bác sĩ", row -> row.getPatientName() + " " + row.getDoctorName(),
+                        "Ngày khám", MedicalRecord::getVisitDate);
                 request.getRequestDispatcher(LIST_PAGE).forward(request, response);
                 return;
             }

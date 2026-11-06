@@ -78,7 +78,9 @@ public class DoctorAppointmentsServlet extends HttpServlet {
             if (idValue == null) {
                 List<Appointment> appointments = manager
                         ? appointmentDAO.getAllForManager() : appointmentDAO.getAllForDoctor(doctorID);
-                request.setAttribute("appointments", appointments);
+                ListPage.byNameAndDate(request, "appointments", appointments,
+                        "Tên bệnh nhân hoặc bác sĩ", row -> row.getPatientName() + " " + row.getDoctorName(),
+                        "Ngày hẹn", Appointment::getAppointmentDate);
                 request.getRequestDispatcher(LIST_PAGE).forward(request, response);
                 return;
             }

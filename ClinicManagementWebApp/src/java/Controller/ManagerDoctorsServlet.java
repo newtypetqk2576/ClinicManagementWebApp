@@ -151,7 +151,8 @@ public class ManagerDoctorsServlet extends HttpServlet {
         session.removeAttribute("managerDoctorMessage");
         try {
             List<Doctor> doctors = new DoctorDAO(getServletContext()).getAll();
-            request.setAttribute("doctors", doctors);
+            ListPage.byName(request, "doctors", doctors,
+                    "Tên bác sĩ", Doctor::getFullName);
             request.getRequestDispatcher(LIST_PAGE).forward(request, response);
         } catch (SQLException ex) {
             LOGGER.log(Level.SEVERE, "Unable to load manager doctor list.", ex);

@@ -6,11 +6,14 @@ import Model.MedicalRecord.MedicineLine;
 import Model.MedicalRecord.Prescription;
 import Model.MedicalRecord.ServiceLine;
 import jakarta.servlet.ServletContext;
+import java.math.BigDecimal;
 import java.sql.Connection;
+import java.sql.Date;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Types;
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -128,30 +131,69 @@ public class MedicalRecordDAO extends DBContext {
     }
 
     public List<MedicalRecord> getAllForManager() throws SQLException {
+        return getForManagerOn(null);
+    }
+
+    public List<MedicalRecord> getForManagerOn(LocalDate date) throws SQLException {
         String sql = "SELECT mr.MedicalRecordID, mr.PatientID, mr.DoctorID, "
                 + "p.FullName AS PatientName, d.FullName AS DoctorName, mr.VisitDate, "
                 + "mr.Symptoms, mr.Status FROM MedicalRecords mr "
                 + "JOIN Patients p ON p.PatientID = mr.PatientID "
                 + "JOIN Doctors d ON d.DoctorID = mr.DoctorID "
+                + (date == null ? "" : "WHERE mr.VisitDate >= ? AND mr.VisitDate < ? ")
                 + "ORDER BY mr.VisitDate DESC, mr.MedicalRecordID DESC";
         List<MedicalRecord> records = new ArrayList<>();
         try (Connection conn = requireConnection();
-                PreparedStatement statement = conn.prepareStatement(sql);
-                ResultSet resultSet = statement.executeQuery()) {
-            while (resultSet.next()) {
-                MedicalRecord record = new MedicalRecord();
-                record.setMedicalRecordID(resultSet.getInt("MedicalRecordID"));
-                record.setPatientID(resultSet.getInt("PatientID"));
-                record.setDoctorID(resultSet.getInt("DoctorID"));
-                record.setPatientName(resultSet.getString("PatientName"));
-                record.setDoctorName(resultSet.getString("DoctorName"));
-                record.setVisitDate(resultSet.getTimestamp("VisitDate").toLocalDateTime());
-                record.setSymptoms(resultSet.getString("Symptoms"));
-                record.setStatus(resultSet.getString("Status"));
-                records.add(record);
+                PreparedStatement statement = conn.prepareStatement(sql)) {
+            if (date != null) {
+                statement.setDate(1, Date.valueOf(date));
+                statement.setDate(2, Date.valueOf(date.plusDays(1)));
+            }
+            try (ResultSet resultSet = statement.executeQuery()) {
+                while (resultSet.next()) {
+                    MedicalRecord record = new MedicalRecord();
+                    record.setMedicalRecordID(resultSet.getInt("MedicalRecordID"));
+                    record.setPatientID(resultSet.getInt("PatientID"));
+                    record.setDoctorID(resultSet.getInt("DoctorID"));
+                    record.setPatientName(resultSet.getString("PatientName"));
+                    record.setDoctorName(resultSet.getString("DoctorName"));
+                    record.setVisitDate(resultSet.getTimestamp("VisitDate").toLocalDateTime());
+                    record.setSymptoms(resultSet.getString("Symptoms"));
+                    record.setStatus(resultSet.getString("Status"));
+                    records.add(record);
+                }
             }
         }
         return records;
+    }
+
+    public Map<LocalDate, BigDecimal> getDailyRevenue(LocalDate start, LocalDate endExclusive)
+            throws SQLException {
+        Map<LocalDate, BigDecimal> totals = new LinkedHashMap<>();
+        try (Connection conn = requireConnection()) {
+            String revenueDate = hasPaidAtColumn(conn) ? "COALESCE(PaidAt, InvoiceDate)" : "InvoiceDate";
+            String sql = "SELECT CAST(" + revenueDate + " AS date) AS RevenueDate, "
+                    + "SUM(TotalAmount) AS Revenue FROM Invoices WHERE PaymentStatus = 'PAID' "
+                    + "AND " + revenueDate + " >= ? AND " + revenueDate + " < ? "
+                    + "GROUP BY CAST(" + revenueDate + " AS date)";
+            try (PreparedStatement statement = conn.prepareStatement(sql)) {
+                statement.setDate(1, Date.valueOf(start));
+                statement.setDate(2, Date.valueOf(endExclusive));
+                try (ResultSet rows = statement.executeQuery()) {
+                    while (rows.next()) {
+                        totals.put(rows.getDate("RevenueDate").toLocalDate(), rows.getBigDecimal("Revenue"));
+                    }
+                }
+            }
+        }
+        return totals;
+    }
+
+    private boolean hasPaidAtColumn(Connection conn) throws SQLException {
+        try (PreparedStatement statement = conn.prepareStatement("SELECT COL_LENGTH('dbo.Invoices', 'PaidAt')");
+                ResultSet result = statement.executeQuery()) {
+            return result.next() && result.getObject(1) != null;
+        }
     }
 
     public MedicalRecord getDetailsForDoctor(int medicalRecordID, int doctorID) throws SQLException {
@@ -258,15 +300,16 @@ public class MedicalRecordDAO extends DBContext {
     private InvoicePaymentResult confirmInvoicePayment(int medicalRecordID, Integer doctorID)
             throws SQLException {
         String scope = doctorID == null ? "" : "AND mr.DoctorID = ?";
-        String invoiceSql = "UPDATE i SET PaymentStatus = 'PAID' FROM Invoices i "
-                + "JOIN MedicalRecords mr ON mr.MedicalRecordID = i.MedicalRecordID "
-                + "WHERE i.MedicalRecordID = ? AND i.PaymentStatus = 'UNPAID' "
-                + "AND mr.Status NOT IN ('COMPLETED', 'CANCELLED') " + scope;
         String recordSql = "UPDATE mr SET Status = 'COMPLETED' FROM MedicalRecords mr "
                 + "JOIN Invoices i ON i.MedicalRecordID = mr.MedicalRecordID "
                 + "WHERE mr.MedicalRecordID = ? AND i.PaymentStatus = 'PAID' "
                 + "AND mr.Status NOT IN ('COMPLETED', 'CANCELLED') " + scope;
         try (Connection conn = requireConnection()) {
+            String paidAt = hasPaidAtColumn(conn) ? ", PaidAt = SYSDATETIME()" : "";
+            String invoiceSql = "UPDATE i SET PaymentStatus = 'PAID'" + paidAt + " FROM Invoices i "
+                    + "JOIN MedicalRecords mr ON mr.MedicalRecordID = i.MedicalRecordID "
+                    + "WHERE i.MedicalRecordID = ? AND i.PaymentStatus = 'UNPAID' "
+                    + "AND mr.Status NOT IN ('COMPLETED', 'CANCELLED') " + scope;
             boolean originalAutoCommit = conn.getAutoCommit();
             conn.setAutoCommit(false);
             try {

@@ -224,7 +224,8 @@ public class DoctorPatientsServlet extends HttpServlet {
             throws ServletException, IOException {
         try {
             List<Patient> patients = new PatientDAO(getServletContext()).getAll();
-            request.setAttribute("patients", patients);
+            ListPage.byName(request, "patients", patients,
+                    "Tên bệnh nhân", Patient::getFullName);
             request.getRequestDispatcher(LIST_PAGE).forward(request, response);
         } catch (SQLException ex) {
             LOGGER.log(Level.SEVERE, "Unable to load doctor patient list.", ex);

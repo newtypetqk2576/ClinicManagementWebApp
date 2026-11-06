@@ -31,7 +31,7 @@ public class LoginServlet extends HttpServlet {
         String username = value(request.getParameter("username")).trim();
         String password = value(request.getParameter("password"));
         if (username.isEmpty() || password.isEmpty()) {
-            request.setAttribute("error", "Enter both username and password.");
+            request.setAttribute("error", "Vui lòng nhập tên đăng nhập và mật khẩu.");
             doGet(request, response);
             return;
         }
@@ -39,7 +39,7 @@ public class LoginServlet extends HttpServlet {
         try {
             User user = new UserDAO(getServletContext()).login(username, password);
             if (user == null) {
-                request.setAttribute("error", "Incorrect username or password.");
+                request.setAttribute("error", "Tên đăng nhập hoặc mật khẩu không đúng.");
                 doGet(request, response);
                 return;
             }
@@ -61,13 +61,13 @@ public class LoginServlet extends HttpServlet {
             String destination = switch (user.getRole()) {
                 case "DOCTOR" -> "/doctor/appointments";
                 case "PATIENT" -> "/appointments";
-                case "MANAGER" -> "/admin/appointments";
+                case "MANAGER" -> "/admin/dashboard";
                 default -> "/";
             };
             response.sendRedirect(request.getContextPath() + destination);
         } catch (SQLException ex) {
             LOGGER.log(Level.SEVERE, "Unable to process login.", ex);
-            request.setAttribute("error", "Login is temporarily unavailable. Please try again.");
+            request.setAttribute("error", "Hiện chưa thể đăng nhập. Vui lòng thử lại sau.");
             doGet(request, response);
         }
     }

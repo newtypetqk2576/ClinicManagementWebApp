@@ -1,18 +1,18 @@
 <%@page contentType="text/html" pageEncoding="UTF-8"%>
 <%@taglib prefix="c" uri="http://java.sun.com/jsp/jstl/core"%>
 <!DOCTYPE html>
-<html>
+<html lang="vi">
     <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1">
-        <title>Create appointment</title>
+        <title>Đặt lịch khám</title>
         <link rel="stylesheet" href="${pageContext.request.contextPath}/css/common-layout.css">
     </head>
     <body>
         <jsp:include page="/common/header.jsp"/>
         <jsp:include page="/common/navigation_bar.jsp"/>
         <main>
-            <h1>Create appointment</h1>
+            <h1>Đặt lịch khám</h1>
             <c:if test="${not empty error}"><p role="alert"><c:out value="${error}"/></p></c:if>
             <c:url var="appointmentsUrl" value="${routeBase}"/>
             <c:choose>
@@ -26,37 +26,37 @@
             <c:url var="doctorSearchUrl" value="${routeBase}/search-doctors"/>
             <form method="post" action="<c:out value="${appointmentsUrl}"/>">
                 <input type="hidden" name="action" value="create">
-                <label for="patientSearch">Search patient by name or phone</label>
+                <label for="patientSearch">Tìm bệnh nhân theo tên hoặc số điện thoại</label>
                 <input id="patientSearch" type="search" autocomplete="off" maxlength="100"
                        data-search-url="<c:out value="${patientSearchUrl}"/>"
                        aria-describedby="patientSearchStatus">
-                <p id="patientSearchStatus" role="status">Search to see matching patients.</p>
-                <label for="patientID">Patient</label>
+                <p id="patientSearchStatus" role="status">Nhập từ khóa để tìm bệnh nhân.</p>
+                <label for="patientID">Bệnh nhân</label>
                 <select id="patientID" name="patientID" required>
-                    <option value="">Search above, then select a patient</option>
+                    <option value="">Tìm và chọn bệnh nhân</option>
                 </select>
                 <c:if test="${managerMode}">
-                    <label for="doctorSearch">Search doctor by name or phone</label>
+                    <label for="doctorSearch">Tìm bác sĩ theo tên hoặc số điện thoại</label>
                     <input id="doctorSearch" type="search" autocomplete="off" maxlength="100"
                            data-search-url="<c:out value="${doctorSearchUrl}"/>"
                            aria-describedby="doctorSearchStatus">
-                    <p id="doctorSearchStatus" role="status">Search to see active doctors.</p>
-                    <label for="doctorID">Doctor</label>
+                    <p id="doctorSearchStatus" role="status">Nhập từ khóa để tìm bác sĩ đang hoạt động.</p>
+                    <label for="doctorID">Bác sĩ</label>
                     <select id="doctorID" name="doctorID" required>
-                        <option value="">Search above, then select a doctor</option>
+                        <option value="">Tìm và chọn bác sĩ</option>
                         <c:if test="${not empty doctorIDValue}">
-                            <option value="<c:out value="${doctorIDValue}"/>" selected>Selected doctor — search again to confirm</option>
+                            <option value="<c:out value="${doctorIDValue}"/>" selected>Tìm lại để chọn bác sĩ.</option>
                         </c:if>
                     </select>
                 </c:if>
-                <label for="appointmentDate">Date and time</label>
+                <label for="appointmentDate">Ngày giờ hẹn</label>
                 <input id="appointmentDate" type="datetime-local" name="appointmentDate"
                        value="<c:out value="${appointmentDateValue}"/>" required>
-                <label for="reason">Reason</label>
+                <label for="reason">Lý do khám</label>
                 <textarea id="reason" name="reason" maxlength="255"><c:out value="${reasonValue}"/></textarea>
-                <button type="submit">Create appointment</button>
+                <button type="submit">Đặt lịch khám</button>
             </form>
-            <p><a href="<c:out value="${appointmentsUrl}"/>">Back to appointments</a></p>
+            <p><a href="<c:out value="${appointmentsUrl}"/>">Về danh sách lịch hẹn</a></p>
         </main>
         <script>
             (() => {
@@ -75,11 +75,11 @@
                     patientSelect.size = 1;
                     const term = searchInput.value.trim();
                     if (!term) {
-                        status.textContent = "Search to see matching patients.";
+                        status.textContent = "Nhập từ khóa để tìm bệnh nhân.";
                         return;
                     }
 
-                    status.textContent = "Searching patients...";
+                    status.textContent = "Đang tìm bệnh nhân…";
                     debounceTimer = window.setTimeout(async () => {
                         activeRequest = new AbortController();
                         const url = new URL(searchInput.dataset.searchUrl, window.location.href);
@@ -101,7 +101,7 @@
                                 throw new Error("Patient search returned invalid results.");
                             }
                             if (patients.length === 0) {
-                                status.textContent = "No matching patients were found.";
+                                status.textContent = "Không tìm thấy bệnh nhân.";
                                 return;
                             }
                             patientSelect.size = Math.min(patients.length + 1, 6);
@@ -114,7 +114,7 @@
                             status.textContent = patients.length + " matching patient(s) found.";
                         } catch (error) {
                             if (error.name !== "AbortError") {
-                                status.textContent = "Patient search is unavailable. Please try again.";
+                                status.textContent = "Chưa thể tìm bệnh nhân. Vui lòng thử lại.";
                             }
                         }
                     }, 250);
@@ -140,10 +140,10 @@
                         doctorSelect.replaceChildren(new Option("Search above, then select a doctor", ""));
                         const term = doctorSearch.value.trim();
                         if (!term) {
-                            doctorStatus.textContent = "Search to see active doctors.";
+                            doctorStatus.textContent = "Nhập từ khóa để tìm bác sĩ đang hoạt động.";
                             return;
                         }
-                        doctorStatus.textContent = "Searching doctors...";
+                        doctorStatus.textContent = "Đang tìm bác sĩ…";
                         doctorTimer = window.setTimeout(async () => {
                             doctorRequest = new AbortController();
                             const url = new URL(doctorSearch.dataset.searchUrl, window.location.href);
@@ -165,7 +165,7 @@
                                     throw new Error("Doctor search returned invalid results.");
                                 }
                                 if (doctors.length === 0) {
-                                    doctorStatus.textContent = "No matching active doctors were found.";
+                                    doctorStatus.textContent = "Không tìm thấy bác sĩ đang hoạt động.";
                                     return;
                                 }
                                 doctorSelect.size = Math.min(doctors.length + 1, 6);
@@ -176,7 +176,7 @@
                                 doctorStatus.textContent = doctors.length + " matching doctor(s) found.";
                             } catch (error) {
                                 if (error.name !== "AbortError") {
-                                    doctorStatus.textContent = "Doctor search is unavailable. Please try again.";
+                                    doctorStatus.textContent = "Chưa thể tìm bác sĩ. Vui lòng thử lại.";
                                 }
                             }
                         }, 250);

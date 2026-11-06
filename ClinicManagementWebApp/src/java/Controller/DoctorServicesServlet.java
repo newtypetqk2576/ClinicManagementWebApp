@@ -152,7 +152,8 @@ public class DoctorServicesServlet extends HttpServlet {
         session.removeAttribute("doctorServiceMessage");
         try {
             List<Service> services = new ServiceDAO(getServletContext()).getAll();
-            request.setAttribute("services", services);
+            ListPage.byName(request, "services", services,
+                    "Tên dịch vụ", Service::getServiceName);
             request.getRequestDispatcher(LIST_PAGE).forward(request, response);
         } catch (SQLException ex) {
             LOGGER.log(Level.SEVERE, "Unable to load doctor service list.", ex);

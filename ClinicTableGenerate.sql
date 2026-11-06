@@ -257,6 +257,8 @@ CREATE TABLE Invoices (
     InvoiceDate DATETIME2 NOT NULL
         DEFAULT SYSDATETIME(),
 
+    PaidAt DATETIME2 NULL,
+
     ServiceAmount DECIMAL(12,2) NOT NULL
         DEFAULT 0,
 

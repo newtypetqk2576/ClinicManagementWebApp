@@ -57,7 +57,9 @@ public class PatientMedicalRecordsServlet extends HttpServlet {
             MedicalRecordDAO medicalRecordDAO = new MedicalRecordDAO(getServletContext());
             if (medicalRecordID == null) {
                 List<MedicalRecord> records = medicalRecordDAO.getByPatientID(patientID);
-                request.setAttribute("records", records);
+                ListPage.byNameAndDate(request, "records", records,
+                        "Tên bác sĩ", MedicalRecord::getDoctorName,
+                        "Ngày khám", MedicalRecord::getVisitDate);
                 request.getRequestDispatcher(LIST_PAGE).forward(request, response);
                 return;
             }

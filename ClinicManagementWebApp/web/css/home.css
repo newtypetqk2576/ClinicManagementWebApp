@@ -1,0 +1,116 @@
+main.home {
+    background: transparent;
+    border: 0;
+    border-radius: 0;
+    box-shadow: none;
+    padding: 0;
+}
+
+.home-hero {
+    align-items: center;
+    background: radial-gradient(circle, #cbd3d5 0.8px, transparent 1px) right top / 18px 18px, #e9ecee;
+    border-radius: 1rem;
+    display: grid;
+    gap: clamp(1.5rem, 4vw, 4rem);
+    grid-template-columns: minmax(0, 1.45fr) minmax(0, 1fr);
+    margin: 0;
+    padding: clamp(1.5rem, 5vw, 4.5rem);
+}
+
+.home-hero h1 {
+    font-size: clamp(2rem, 4.25vw, 4.4rem);
+    line-height: 1.08;
+    margin-bottom: 1rem;
+}
+
+.home-hero__description {
+    color: var(--color-muted);
+    max-width: 44ch;
+}
+
+.home-hero__art svg {
+    display: block;
+    height: auto;
+    margin-inline: auto;
+    max-width: 100%;
+}
+
+.home-catalog {
+    background: transparent;
+    border: 0;
+    margin-block: clamp(1.75rem, 4vw, 3rem);
+    padding: 0;
+}
+
+.home-catalog h2 {
+    border: 0;
+    font-size: clamp(1.6rem, 3vw, 2.35rem);
+    letter-spacing: -0.03em;
+    margin: 0;
+    padding: 0;
+}
+
+.home-catalog__heading > p:last-child {
+    color: var(--color-muted);
+}
+
+.home-services {
+    display: grid;
+    gap: 1rem;
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 17rem), 1fr));
+    list-style: none;
+    margin: 1.25rem 0 0;
+    padding: 0;
+}
+
+.home-service,
+.home-catalog__notice {
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: 0.85rem;
+    padding: 1.25rem;
+}
+
+.home-service {
+    display: flex;
+    flex-direction: column;
+    overflow-wrap: anywhere;
+}
+
+.home-service h3 {
+    font-size: 1.15rem;
+    margin: 0;
+}
+
+.home-service p {
+    color: var(--color-muted);
+}
+
+.home-service .home-service__price {
+    border-top: 1px solid var(--color-border);
+    color: var(--color-teal-dark);
+    font-variant-numeric: tabular-nums;
+    font-weight: 750;
+    margin: auto 0 0;
+    padding-top: 0.65rem;
+}
+
+.home-service h3 + .home-service__price {
+    border-top: 0;
+    padding-top: 0.8rem;
+}
+
+.home-catalog .home-catalog__notice {
+    color: var(--color-muted);
+}
+
+@media (max-width: 48rem) {
+    .home-hero {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .home-hero__art,
+    .home-hero__break {
+        display: none;
+    }
+}

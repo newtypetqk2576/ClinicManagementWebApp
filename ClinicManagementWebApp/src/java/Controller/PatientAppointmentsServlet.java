@@ -2,6 +2,7 @@ package Controller;
 
 import Dal.AppointmentDAO;
 import Dal.DoctorDAO;
+import Model.Appointment;
 import Model.Doctor;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.annotation.WebServlet;
@@ -167,8 +168,9 @@ public class PatientAppointmentsServlet extends HttpServlet {
         try {
             List<Doctor> activeDoctors = new DoctorDAO(getServletContext()).getActive();
             request.setAttribute("doctors", activeDoctors);
-            request.setAttribute("appointments",
-                    new AppointmentDAO(getServletContext()).getByPatientID(patientID));
+            ListPage.byNameAndDate(request, "appointments",
+                    new AppointmentDAO(getServletContext()).getByPatientID(patientID),
+                    "Tên bác sĩ", Appointment::getDoctorName, "Ngày hẹn", Appointment::getAppointmentDate);
             request.getRequestDispatcher(PAGE).forward(request, response);
         } catch (SQLException ex) {
             LOGGER.log(Level.SEVERE, "Unable to load patient appointments.", ex);

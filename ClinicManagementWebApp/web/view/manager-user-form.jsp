@@ -1,42 +1,42 @@
 <%@page contentType="text/html" pageEncoding="UTF-8"%>
 <%@taglib prefix="c" uri="http://java.sun.com/jsp/jstl/core"%>
 <!DOCTYPE html>
-<html>
+<html lang="vi">
     <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1">
-        <title>Create user</title>
+        <title>Tạo tài khoản</title>
         <link rel="stylesheet" href="${pageContext.request.contextPath}/css/common-layout.css">
     </head>
     <body>
         <jsp:include page="/common/header.jsp"/>
         <jsp:include page="/common/navigation_bar.jsp"/>
         <main>
-            <h1>Create user account</h1>
+            <h1>Tạo tài khoản</h1>
             <c:if test="${not empty error}"><p role="alert"><c:out value="${error}"/></p></c:if>
             <c:url var="usersUrl" value="/admin/users"/>
             <c:url var="patientSearchUrl" value="/admin/users/search-patients"/>
             <c:url var="doctorSearchUrl" value="/admin/users/search-doctors"/>
             <form method="post" action="<c:out value="${usersUrl}"/>">
                 <input type="hidden" name="action" value="create">
-                <label for="role">Role</label>
+                <label for="role">Vai trò</label>
                 <select id="role" name="role" required>
-                    <option value="">Choose a role</option>
-                    <option value="PATIENT" <c:if test="${role eq 'PATIENT'}">selected</c:if>>Patient</option>
-                    <option value="DOCTOR" <c:if test="${role eq 'DOCTOR'}">selected</c:if>>Doctor</option>
-                    <option value="MANAGER" <c:if test="${role eq 'MANAGER'}">selected</c:if>>Manager</option>
+                    <option value="">Chọn vai trò</option>
+                    <option value="PATIENT" <c:if test="${role eq 'PATIENT'}">selected</c:if>>Bệnh nhân</option>
+                    <option value="DOCTOR" <c:if test="${role eq 'DOCTOR'}">selected</c:if>>Bác sĩ</option>
+                    <option value="MANAGER" <c:if test="${role eq 'MANAGER'}">selected</c:if>>Quản lý</option>
                 </select>
 
                 <section id="patientPicker" hidden>
-                    <label for="patientSearch">Search patient by name or phone</label>
+                    <label for="patientSearch">Tìm bệnh nhân theo tên hoặc số điện thoại</label>
                     <input id="patientSearch" type="search" autocomplete="off" maxlength="100"
                            value="<c:out value="${patientSearch}"/>"
                            data-search-url="<c:out value="${patientSearchUrl}"/>"
                            aria-describedby="patientSearchStatus">
-                    <p id="patientSearchStatus" role="status">Search to see matching patients.</p>
-                    <label for="patientID">Patient</label>
+                    <p id="patientSearchStatus" role="status">Nhập từ khóa để tìm bệnh nhân.</p>
+                    <label for="patientID">Bệnh nhân</label>
                     <select id="patientID" name="patientID" disabled>
-                        <option value="">Search above, then select a patient</option>
+                        <option value="">Tìm và chọn bệnh nhân</option>
                         <c:if test="${not empty patientID}">
                             <option value="<c:out value="${patientID}"/>" selected>
                                 Previously selected patient — search again if unavailable
@@ -46,15 +46,15 @@
                 </section>
 
                 <section id="doctorPicker" hidden>
-                    <label for="doctorSearch">Search doctor by name or phone</label>
+                    <label for="doctorSearch">Tìm bác sĩ theo tên hoặc số điện thoại</label>
                     <input id="doctorSearch" type="search" autocomplete="off" maxlength="100"
                            value="<c:out value="${doctorSearch}"/>"
                            data-search-url="<c:out value="${doctorSearchUrl}"/>"
                            aria-describedby="doctorSearchStatus">
-                    <p id="doctorSearchStatus" role="status">Search to see matching doctors.</p>
-                    <label for="doctorID">Doctor</label>
+                    <p id="doctorSearchStatus" role="status">Nhập từ khóa để tìm bác sĩ.</p>
+                    <label for="doctorID">Bác sĩ</label>
                     <select id="doctorID" name="doctorID" disabled>
-                        <option value="">Search above, then select a doctor</option>
+                        <option value="">Tìm và chọn bác sĩ</option>
                         <c:if test="${not empty doctorID}">
                             <option value="<c:out value="${doctorID}"/>" selected>
                                 Previously selected doctor — search again if unavailable
@@ -63,14 +63,14 @@
                     </select>
                 </section>
 
-                <label for="username">Username</label>
+                <label for="username">Tên đăng nhập</label>
                 <input id="username" name="username" maxlength="50" required
                        value="<c:out value="${username}"/>">
-                <label for="password">Password</label>
+                <label for="password">Mật khẩu</label>
                 <input id="password" name="password" type="text" maxlength="255" required>
-                <button type="submit">Create user</button>
+                <button type="submit">Tạo tài khoản</button>
             </form>
-            <p><a href="<c:out value="${usersUrl}"/>">Back to users</a></p>
+            <p><a href="<c:out value="${usersUrl}"/>">Về danh sách tài khoản</a></p>
         </main>
         <script>
             (() => {

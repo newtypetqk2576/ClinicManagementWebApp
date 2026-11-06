@@ -29,7 +29,8 @@ public class PatientServicesServlet extends HttpServlet {
         try {
             ServiceDAO serviceDAO = new ServiceDAO(getServletContext());
             List<Service> services = serviceDAO.getActiveServices();
-            request.setAttribute("services", services);
+            ListPage.byName(request, "services", services,
+                    "Tên dịch vụ", Service::getServiceName);
             request.getRequestDispatcher(PAGE).forward(request, response);
         } catch (SQLException ex) {
             LOGGER.log(Level.SEVERE, "Unable to load active patient services.", ex);

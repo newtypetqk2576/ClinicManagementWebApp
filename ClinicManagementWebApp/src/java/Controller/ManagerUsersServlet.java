@@ -189,7 +189,9 @@ public class ManagerUsersServlet extends HttpServlet {
         session.removeAttribute("managerUserMessage");
         try {
             List<User> users = new UserDAO(getServletContext()).getUsersForManager();
-            request.setAttribute("users", users);
+            ListPage.byNameAndDate(request, "users", users,
+                    "Tên đăng nhập", User::getUsername,
+                    "Ngày tạo", User::getCreatedAt);
             request.getRequestDispatcher(LIST_PAGE).forward(request, response);
         } catch (SQLException ex) {
             LOGGER.log(Level.SEVERE, "Unable to load manager user list.", ex);
