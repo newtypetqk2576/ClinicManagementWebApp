@@ -157,7 +157,7 @@ public class DoctorMedicalRecordsServlet extends HttpServlet {
                 }
             }
             if (confirmPayment) {
-                confirmInvoicePayment(request, response, manager, doctorID);
+                confirmInvoicePayment(request, response, doctor, manager);
                 return;
             }
             if ("create".equals(action)) {
@@ -181,7 +181,8 @@ public class DoctorMedicalRecordsServlet extends HttpServlet {
     }
 
     private void confirmInvoicePayment(HttpServletRequest request, HttpServletResponse response,
-            boolean manager, Integer doctorID) throws IOException, SQLException {
+            Doctor doctor, boolean manager) throws ServletException, IOException, SQLException {
+        Integer doctorID = manager ? null : doctor.getDoctorID();
         int recordID;
         try {
             recordID = parseID(request.getParameter("id"));
@@ -210,17 +211,45 @@ public class DoctorMedicalRecordsServlet extends HttpServlet {
             response.sendError(HttpServletResponse.SC_CONFLICT, "Completed medical records are read-only.");
             return;
         }
+        if (request.getParameter("symptoms") == null || request.getParameter("diagnosis") == null
+                || request.getParameter("treatmentNotes") == null) {
+            response.sendError(HttpServletResponse.SC_BAD_REQUEST,
+                    "Submit the medical record form to save its contents before payment.");
+            return;
+        }
+        readClinicalFields(request, record, false);
+        String error = validateClinicalFields(record, request);
+        if (error == null && (!"IN_PROGRESS".equals(record.getStatus())
+                || !"IN_PROGRESS".equals(request.getParameter("status")))) {
+            error = "Chỉ có thể thanh toán hồ sơ đang khám. Nội dung chưa được lưu.";
+        }
+        if (error != null) {
+            renderEditForm(request, response, doctor, record, error, manager);
+            return;
+        }
         MedicalRecordDAO paymentDao = new MedicalRecordDAO(getServletContext());
-        InvoicePaymentResult result = manager
-                ? paymentDao.confirmInvoicePaymentForManager(recordID)
-                : paymentDao.confirmInvoicePaymentForDoctor(recordID, doctorID);
+        InvoicePaymentResult result;
+        try {
+            result = manager ? paymentDao.confirmInvoicePaymentForManager(record)
+                    : paymentDao.confirmInvoicePaymentForDoctor(record, doctorID);
+        } catch (SQLException ex) {
+            LOGGER.log(Level.SEVERE, "Unable to save the medical record and confirm payment.", ex);
+            renderEditForm(request, response, doctor, record,
+                    "Chưa thể lưu hồ sơ và xác nhận thanh toán. Vui lòng thử lại.", manager);
+            return;
+        }
         if (result == InvoicePaymentResult.NOT_FOUND) {
             response.sendError(HttpServletResponse.SC_NOT_FOUND);
             return;
         }
+        if (result == InvoicePaymentResult.NOT_PAYABLE) {
+            renderEditForm(request, response, doctor, record,
+                    "Không thể thanh toán hóa đơn này. Nội dung chưa được lưu.", manager);
+            return;
+        }
 
         String message = switch (result) {
-            case CONFIRMED -> "Invoice payment confirmed.";
+            case CONFIRMED -> "Đã lưu nội dung khám và xác nhận thanh toán.";
             case ALREADY_PAID -> "This invoice is already marked as paid.";
             case NOT_PAYABLE -> "Payment cannot be confirmed for this invoice.";
             case NOT_FOUND -> throw new IllegalStateException("The invoice was not found.");

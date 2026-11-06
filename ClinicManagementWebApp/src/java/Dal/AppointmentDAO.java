@@ -13,6 +13,13 @@ import java.util.List;
 import java.time.LocalDateTime;
 
 public class AppointmentDAO extends DBContext {
+    public enum CreationResult {
+        CREATED,
+        DOCTOR_UNAVAILABLE,
+        DOCTOR_BUSY,
+        PATIENT_BUSY
+    }
+
     public AppointmentDAO(ServletContext servletContext) {
         super(servletContext);
     }
@@ -204,22 +211,54 @@ public class AppointmentDAO extends DBContext {
         return appointments;
     }
 
-    public boolean createForPatient(int patientID, int doctorID, LocalDateTime appointmentDate, String reason)
+    public CreationResult createForPatient(int patientID, int doctorID, LocalDateTime appointmentDate, String reason)
             throws SQLException {
+        String conflictSql = "SELECT TOP (1) DoctorID FROM Appointments WITH (UPDLOCK, HOLDLOCK) "
+                + "WHERE AppointmentDate = ? AND Status IN ('BOOKED', 'CONFIRMED') "
+                + "AND (DoctorID = ? OR PatientID = ?)";
         String sql = "INSERT INTO Appointments (PatientID, DoctorID, AppointmentDate, Reason) "
                 + "SELECT ?, d.DoctorID, ?, ? FROM Doctors d "
                 + "WHERE d.DoctorID = ? AND d.IsActive = 1";
-        try (Connection conn = requireConnection();
-                PreparedStatement statement = conn.prepareStatement(sql)) {
-            statement.setInt(1, patientID);
-            statement.setTimestamp(2, Timestamp.valueOf(appointmentDate));
-            if (reason == null) {
-                statement.setNull(3, Types.NVARCHAR);
-            } else {
-                statement.setNString(3, reason);
+        try (Connection conn = requireConnection()) {
+            boolean originalAutoCommit = conn.getAutoCommit();
+            conn.setAutoCommit(false);
+            try {
+                // Keep the checked time range locked until the insert commits, including an empty slot.
+                try (PreparedStatement statement = conn.prepareStatement(conflictSql)) {
+                    statement.setTimestamp(1, Timestamp.valueOf(appointmentDate));
+                    statement.setInt(2, doctorID);
+                    statement.setInt(3, patientID);
+                    try (ResultSet resultSet = statement.executeQuery()) {
+                        if (resultSet.next()) {
+                            CreationResult conflict = resultSet.getInt("DoctorID") == doctorID
+                                    ? CreationResult.DOCTOR_BUSY : CreationResult.PATIENT_BUSY;
+                            conn.rollback();
+                            return conflict;
+                        }
+                    }
+                }
+                try (PreparedStatement statement = conn.prepareStatement(sql)) {
+                    statement.setInt(1, patientID);
+                    statement.setTimestamp(2, Timestamp.valueOf(appointmentDate));
+                    if (reason == null) {
+                        statement.setNull(3, Types.NVARCHAR);
+                    } else {
+                        statement.setNString(3, reason);
+                    }
+                    statement.setInt(4, doctorID);
+                    if (statement.executeUpdate() != 1) {
+                        conn.rollback();
+                        return CreationResult.DOCTOR_UNAVAILABLE;
+                    }
+                }
+                conn.commit();
+                return CreationResult.CREATED;
+            } catch (SQLException | RuntimeException ex) {
+                conn.rollback();
+                throw ex;
+            } finally {
+                conn.setAutoCommit(originalAutoCommit);
             }
-            statement.setInt(4, doctorID);
-            return statement.executeUpdate() == 1;
         }
     }
 

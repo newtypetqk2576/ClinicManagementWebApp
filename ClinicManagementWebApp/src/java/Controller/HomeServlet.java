@@ -22,7 +22,7 @@ public class HomeServlet extends HttpServlet {
         response.setHeader("Cache-Control", "no-store");
         request.setAttribute("listAnchor", "#dich-vu");
         try {
-            ListPage.byName(request, "services", new ServiceDAO(getServletContext()).getActiveServices(),
+            ListPage.allByName(request, "services", new ServiceDAO(getServletContext()).getActiveServices(),
                     "Tên dịch vụ", Service::getServiceName);
         } catch (SQLException ex) {
             LOGGER.log(Level.WARNING, "Unable to load the public service catalog.", ex);

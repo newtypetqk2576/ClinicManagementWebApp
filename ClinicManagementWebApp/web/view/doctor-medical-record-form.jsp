@@ -253,8 +253,8 @@
                                 <dt>Ghi chú</dt><dd><c:out value="${record.invoice.notes}"/></dd>
                             </dl>
                             <c:if test="${recordEditable and record.invoice.paymentStatus eq 'UNPAID'}">
-                                <button type="submit" formaction="<c:out value="${confirmPaymentUrl}"/>"
-                                        formnovalidate>Xác nhận thanh toán</button>
+                                <p>Nội dung khám sẽ được lưu cùng lúc với thanh toán. Sau đó hồ sơ chỉ có thể xem.</p>
+                                <button type="submit" formaction="<c:out value="${confirmPaymentUrl}"/>">Lưu và xác nhận thanh toán</button>
                             </c:if>
                         </c:when>
                         <c:otherwise>

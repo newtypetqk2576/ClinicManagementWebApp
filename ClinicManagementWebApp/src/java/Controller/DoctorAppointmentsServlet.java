@@ -1,6 +1,7 @@
 package Controller;
 
 import Dal.AppointmentDAO;
+import Dal.AppointmentDAO.CreationResult;
 import Dal.DoctorDAO;
 import Dal.PatientDAO;
 import Model.Appointment;
@@ -15,7 +16,9 @@ import jakarta.servlet.http.HttpSession;
 import java.io.IOException;
 import java.io.PrintWriter;
 import java.sql.SQLException;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
 import java.util.List;
@@ -36,6 +39,7 @@ public class DoctorAppointmentsServlet extends HttpServlet {
     private static final String LIST_PAGE = "/view/doctor-appointments.jsp";
     private static final String DETAIL_PAGE = "/view/doctor-appointment-detail.jsp";
     private static final String CREATE_PAGE = "/view/doctor-appointment-form.jsp";
+    private static final ZoneId CLINIC_ZONE = ZoneId.of("Asia/Ho_Chi_Minh");
 
     @Override
     protected void doGet(HttpServletRequest request, HttpServletResponse response)
@@ -78,6 +82,11 @@ public class DoctorAppointmentsServlet extends HttpServlet {
             if (idValue == null) {
                 List<Appointment> appointments = manager
                         ? appointmentDAO.getAllForManager() : appointmentDAO.getAllForDoctor(doctorID);
+                LocalDate today = LocalDate.now(CLINIC_ZONE);
+                List<Appointment> todaysAppointments = appointments.stream()
+                        .filter(appointment -> today.equals(appointment.getAppointmentDate().toLocalDate()))
+                        .toList();
+                request.setAttribute("todaysAppointments", todaysAppointments);
                 ListPage.byNameAndDate(request, "appointments", appointments,
                         "Tên bệnh nhân hoặc bác sĩ", row -> row.getPatientName() + " " + row.getDoctorName(),
                         "Ngày hẹn", Appointment::getAppointmentDate);
@@ -199,13 +208,22 @@ public class DoctorAppointmentsServlet extends HttpServlet {
 
         try {
             PatientDAO patientDAO = new PatientDAO(getServletContext());
-            if (!patientDAO.existsByID(patientID)) {
+            Patient selectedPatient = patientDAO.getByID(patientID);
+            if (selectedPatient == null) {
                 renderCreateForm(request, response, "The selected patient could not be found. Search again.");
                 return;
             }
-            if (!new AppointmentDAO(getServletContext()).createForPatient(
-                    patientID, doctorID, appointmentDate, reason.isEmpty() ? null : reason)) {
-                renderCreateForm(request, response, "The selected doctor account is no longer active.");
+            request.setAttribute("selectedPatient", selectedPatient);
+            CreationResult result = new AppointmentDAO(getServletContext()).createForPatient(
+                    patientID, doctorID, appointmentDate, reason.isEmpty() ? null : reason);
+            if (result != CreationResult.CREATED) {
+                String error = switch (result) {
+                    case DOCTOR_BUSY -> "Bác sĩ đã có lịch hẹn vào thời điểm này. Vui lòng chọn thời điểm khác.";
+                    case PATIENT_BUSY -> "Bệnh nhân đã có lịch hẹn vào thời điểm này. Vui lòng chọn thời điểm khác.";
+                    case DOCTOR_UNAVAILABLE -> "Bác sĩ đã ngừng nhận lịch. Vui lòng kiểm tra lại bác sĩ được chọn.";
+                    default -> throw new IllegalStateException("Unexpected appointment result.");
+                };
+                renderCreateForm(request, response, error);
                 return;
             }
             request.getSession(false).setAttribute(manager

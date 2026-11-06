@@ -19,18 +19,23 @@ final class ListPage {
 
     static <T> void byName(HttpServletRequest request, String attribute, List<T> rows,
             String nameLabel, Function<T, String> nameOf) {
-        filter(request, attribute, rows, nameLabel, nameOf, null, null);
+        filter(request, attribute, rows, nameLabel, nameOf, null, null, PAGE_SIZE);
+    }
+
+    static <T> void allByName(HttpServletRequest request, String attribute, List<T> rows,
+            String nameLabel, Function<T, String> nameOf) {
+        filter(request, attribute, rows, nameLabel, nameOf, null, null, Math.max(1, rows.size()));
     }
 
     static <T> void byNameAndDate(HttpServletRequest request, String attribute, List<T> rows,
             String nameLabel, Function<T, String> nameOf, String dateLabel,
             Function<T, LocalDateTime> dateOf) {
-        filter(request, attribute, rows, nameLabel, nameOf, dateLabel, dateOf);
+        filter(request, attribute, rows, nameLabel, nameOf, dateLabel, dateOf, PAGE_SIZE);
     }
 
     private static <T> void filter(HttpServletRequest request, String attribute, List<T> rows,
             String nameLabel, Function<T, String> nameOf, String dateLabel,
-            Function<T, LocalDateTime> dateOf) {
+            Function<T, LocalDateTime> dateOf, int pageSize) {
         String query = request.getParameter("q");
         query = query == null ? "" : query.strip();
         String needle = normalize(query);
@@ -39,10 +44,10 @@ final class ListPage {
                 .filter(row -> needle.isEmpty() || normalize(nameOf.apply(row)).contains(needle))
                 .filter(row -> date == null || date.equals(dateOf.apply(row).toLocalDate()))
                 .toList();
-        int pages = Math.max(1, (matches.size() + PAGE_SIZE - 1) / PAGE_SIZE);
+        int pages = Math.max(1, (matches.size() + pageSize - 1) / pageSize);
         int page = Math.min(readPage(request.getParameter("page")), pages);
-        int start = (page - 1) * PAGE_SIZE;
-        request.setAttribute(attribute, matches.subList(start, Math.min(start + PAGE_SIZE, matches.size())));
+        int start = (page - 1) * pageSize;
+        request.setAttribute(attribute, matches.subList(start, Math.min(start + pageSize, matches.size())));
         request.setAttribute("listRoute", request.getServletPath());
         request.setAttribute("listNameLabel", nameLabel);
         request.setAttribute("listDateLabel", dateLabel);

@@ -69,7 +69,6 @@
                         </ul>
                     </c:otherwise>
                 </c:choose>
-                <list:pagination/>
             </section>
         </main>
     </body>

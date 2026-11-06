@@ -34,6 +34,11 @@
                 <label for="patientID">Bệnh nhân</label>
                 <select id="patientID" name="patientID" required>
                     <option value="">Tìm và chọn bệnh nhân</option>
+                    <c:if test="${not empty selectedPatient}">
+                        <option value="<c:out value="${selectedPatient.patientID}"/>" selected>
+                            <c:out value="${selectedPatient.fullName}"/> — <c:out value="${selectedPatient.phone}"/>
+                        </option>
+                    </c:if>
                 </select>
                 <c:if test="${managerMode}">
                     <label for="doctorSearch">Tìm bác sĩ theo tên hoặc số điện thoại</label>

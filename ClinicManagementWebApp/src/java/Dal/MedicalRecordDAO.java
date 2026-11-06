@@ -285,22 +285,24 @@ public class MedicalRecordDAO extends DBContext {
         return save(record, createInvoice, replaceItems, null);
     }
 
-    public InvoicePaymentResult confirmInvoicePaymentForDoctor(int medicalRecordID, int doctorID)
+    public InvoicePaymentResult confirmInvoicePaymentForDoctor(MedicalRecord record, int doctorID)
             throws SQLException {
-        requirePositiveID(medicalRecordID, "MedicalRecordID");
+        requirePositiveID(record.getMedicalRecordID(), "MedicalRecordID");
         requirePositiveID(doctorID, "DoctorID");
-        return confirmInvoicePayment(medicalRecordID, doctorID);
+        return confirmInvoicePayment(record, doctorID);
     }
 
-    public InvoicePaymentResult confirmInvoicePaymentForManager(int medicalRecordID) throws SQLException {
-        requirePositiveID(medicalRecordID, "MedicalRecordID");
-        return confirmInvoicePayment(medicalRecordID, null);
+    public InvoicePaymentResult confirmInvoicePaymentForManager(MedicalRecord record) throws SQLException {
+        requirePositiveID(record.getMedicalRecordID(), "MedicalRecordID");
+        return confirmInvoicePayment(record, null);
     }
 
-    private InvoicePaymentResult confirmInvoicePayment(int medicalRecordID, Integer doctorID)
+    private InvoicePaymentResult confirmInvoicePayment(MedicalRecord record, Integer doctorID)
             throws SQLException {
+        int medicalRecordID = record.getMedicalRecordID();
         String scope = doctorID == null ? "" : "AND mr.DoctorID = ?";
-        String recordSql = "UPDATE mr SET Status = 'COMPLETED' FROM MedicalRecords mr "
+        String recordSql = "UPDATE mr SET Symptoms = ?, Diagnosis = ?, TreatmentNotes = ?, "
+                + "Status = 'COMPLETED' FROM MedicalRecords mr "
                 + "JOIN Invoices i ON i.MedicalRecordID = mr.MedicalRecordID "
                 + "WHERE mr.MedicalRecordID = ? AND i.PaymentStatus = 'PAID' "
                 + "AND mr.Status NOT IN ('COMPLETED', 'CANCELLED') " + scope;
@@ -313,6 +315,22 @@ public class MedicalRecordDAO extends DBContext {
             boolean originalAutoCommit = conn.getAutoCommit();
             conn.setAutoCommit(false);
             try {
+                // Lock the visit before the invoice, as the normal save flow does.
+                // A simultaneous save or payment must finish before this one proceeds.
+                String lockSql = "SELECT mr.MedicalRecordID FROM MedicalRecords mr WITH (UPDLOCK, HOLDLOCK) "
+                        + "WHERE mr.MedicalRecordID = ? " + scope;
+                try (PreparedStatement statement = conn.prepareStatement(lockSql)) {
+                    statement.setInt(1, medicalRecordID);
+                    if (doctorID != null) {
+                        statement.setInt(2, doctorID);
+                    }
+                    try (ResultSet rows = statement.executeQuery()) {
+                        if (!rows.next()) {
+                            conn.rollback();
+                            return InvoicePaymentResult.NOT_FOUND;
+                        }
+                    }
+                }
                 int updated;
                 try (PreparedStatement statement = conn.prepareStatement(invoiceSql)) {
                     statement.setInt(1, medicalRecordID);
@@ -323,9 +341,12 @@ public class MedicalRecordDAO extends DBContext {
                 }
                 if (updated == 1) {
                     try (PreparedStatement statement = conn.prepareStatement(recordSql)) {
-                        statement.setInt(1, medicalRecordID);
+                        setNullableNString(statement, 1, record.getSymptoms());
+                        setNullableNString(statement, 2, record.getDiagnosis());
+                        setNullableNString(statement, 3, record.getTreatmentNotes());
+                        statement.setInt(4, medicalRecordID);
                         if (doctorID != null) {
-                            statement.setInt(2, doctorID);
+                            statement.setInt(5, doctorID);
                         }
                         if (statement.executeUpdate() != 1) {
                             throw new SQLException("The medical record could not be completed after payment.");
@@ -355,15 +376,6 @@ public class MedicalRecordDAO extends DBContext {
                     }
                 }
 
-                if (result == InvoicePaymentResult.ALREADY_PAID) {
-                    try (PreparedStatement statement = conn.prepareStatement(recordSql)) {
-                        statement.setInt(1, medicalRecordID);
-                        if (doctorID != null) {
-                            statement.setInt(2, doctorID);
-                        }
-                        statement.executeUpdate();
-                    }
-                }
                 conn.commit();
                 return result;
             } catch (SQLException | RuntimeException ex) {

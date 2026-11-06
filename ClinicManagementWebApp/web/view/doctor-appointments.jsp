@@ -6,7 +6,7 @@
     <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1">
-        <title><c:choose><c:when test="${managerMode}">Lịch hẹn</c:when><c:otherwise>Lịch hẹn</c:otherwise></c:choose></title>
+        <title>Lịch hẹn</title>
         <link rel="stylesheet" href="${pageContext.request.contextPath}/css/common-layout.css">
     </head>
     <body>
@@ -18,57 +18,16 @@
             <c:if test="${not empty error}"><p role="alert"><c:out value="${error}"/></p></c:if>
             <c:url var="createAppointmentUrl" value="${routeBase}/new"/>
             <p><a class="button" href="<c:out value="${createAppointmentUrl}"/>">Đặt lịch khám</a></p>
-            <list:filters/>
-            <c:choose>
-                <c:when test="${empty appointments}">
-                    <p>Không tìm thấy lịch hẹn.</p>
-                </c:when>
-                <c:otherwise>
-                    <div class="table-scroll">
-                        <table>
-                            <thead>
-                                <tr>
-                                    <th scope="col">Bệnh nhân</th>
-                                    <th scope="col">Bác sĩ</th>
-                                    <th scope="col">Lý do khám</th>
-                                    <th scope="col">Ngày tạo</th>
-                                    <th scope="col">Ngày giờ hẹn</th>
-                                    <th scope="col">Trạng thái</th>
-                                    <th scope="col">Thao tác</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <c:forEach var="appointment" items="${appointments}">
-                                    <tr>
-                                        <td><c:out value="${appointment.patientName}"/></td>
-                                        <td><c:out value="${appointment.doctorName}"/></td>
-                                        <td><c:out value="${appointment.reason}"/></td>
-                                        <td><list:dateTime value="${appointment.createdAt}"/></td>
-                                        <td><list:dateTime value="${appointment.appointmentDate}"/></td>
-                                        <td><list:status value="${appointment.status}"/></td>
-                                        <td>
-                                            <c:url var="detailUrl" value="${routeBase}">
-                                                <c:param name="id" value="${appointment.appointmentID}"/>
-                                            </c:url>
-                                            <a href="<c:out value="${detailUrl}"/>">Xem chi tiết</a>
-                                            <c:if test="${appointment.status eq 'BOOKED' and (managerMode or appointment.doctorID eq doctorID)}">
-                                                <c:url var="appointmentsUrl" value="${routeBase}"/>
-                                                <form method="post" action="<c:out value="${appointmentsUrl}"/>">
-                                                    <input type="hidden" name="action" value="confirm">
-                                                    <input type="hidden" name="id"
-                                                           value="<c:out value="${appointment.appointmentID}"/>">
-                                                    <button type="submit">Xác nhận</button>
-                                                </form>
-                                            </c:if>
-                                        </td>
-                                    </tr>
-                                </c:forEach>
-                            </tbody>
-                        </table>
-                    </div>
-                </c:otherwise>
-            </c:choose>
-            <list:pagination/>
+            <section aria-labelledby="today-appointments">
+                <h2 id="today-appointments">Lịch hẹn hôm nay</h2>
+                <list:appointmentTable rows="${todaysAppointments}"/>
+            </section>
+            <section aria-labelledby="all-appointments">
+                <h2 id="all-appointments">Tất cả lịch hẹn</h2>
+                <list:filters/>
+                <list:appointmentTable rows="${appointments}"/>
+                <list:pagination/>
+            </section>
         </main>
     </body>
 </html>

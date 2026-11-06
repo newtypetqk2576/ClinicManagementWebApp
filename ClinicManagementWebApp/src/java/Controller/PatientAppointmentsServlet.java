@@ -1,6 +1,7 @@
 package Controller;
 
 import Dal.AppointmentDAO;
+import Dal.AppointmentDAO.CreationResult;
 import Dal.DoctorDAO;
 import Model.Appointment;
 import Model.Doctor;
@@ -94,9 +95,16 @@ public class PatientAppointmentsServlet extends HttpServlet {
         }
 
         try {
-            if (!new AppointmentDAO(getServletContext()).createForPatient(
-                    patientID, doctorID, appointmentDate, reason.isEmpty() ? null : reason)) {
-                renderError(request, response, patientID, "The selected doctor is no longer active.");
+            CreationResult result = new AppointmentDAO(getServletContext()).createForPatient(
+                    patientID, doctorID, appointmentDate, reason.isEmpty() ? null : reason);
+            if (result != CreationResult.CREATED) {
+                String error = switch (result) {
+                    case DOCTOR_BUSY -> "Bác sĩ đã có lịch hẹn vào thời điểm này. Vui lòng chọn giờ hoặc bác sĩ khác.";
+                    case PATIENT_BUSY -> "Bạn đã có lịch hẹn vào thời điểm này. Vui lòng chọn giờ khác.";
+                    case DOCTOR_UNAVAILABLE -> "Bác sĩ đã ngừng nhận lịch. Vui lòng chọn bác sĩ khác.";
+                    default -> throw new IllegalStateException("Unexpected appointment result.");
+                };
+                renderError(request, response, patientID, error);
                 return;
             }
             request.getSession(false).setAttribute("appointmentMessage", "Appointment created.");
